@@ -3,12 +3,13 @@ FROM gmag11/metatrader5_vnc
 # Fix RPyC Linux
 RUN pip install --break-system-packages rpyc==5.2.3 plumbum==1.7.0 pyparsing==3.1.0 --force-reinstall
 
-# Fix le script start.sh pour ne pas passer -w wine python.exe
-RUN sed -i 's/python3 -m mt5linux --host 0.0.0.0 -p $mt5server_port -w $wine_executable python.exe/python3 -m mt5linux --host 0.0.0.0 -p $mt5server_port/' /Metatrader/start.sh
-
 # Fix NumPy conflict dans Wine Python (MetaTrader5 nécessite numpy<2)
 ENV WINEPREFIX=/config/.wine
 RUN wine python -m pip install "numpy<2" --quiet 2>/dev/null || true
+
+# Remplace le serveur RPyC Linux par Wine Python (seul capable d'importer MetaTrader5)
+# La ligne originale : python3 -m mt5linux --host 0.0.0.0 -p $mt5server_port &
+RUN sed -i 's|python3 -m mt5linux --host 0.0.0.0 -p \$mt5server_port|wine python -m mt5linux --host 0.0.0.0 -p \$mt5server_port|g' /Metatrader/start.sh
 
 # Supprime le repo WineHQ (clé GPG expirée) - Wine déjà installé dans l'image de base
 RUN rm -f /etc/apt/sources.list.d/winehq* /etc/apt/sources.list.d/wine* 2>/dev/null || true && \
