@@ -29,14 +29,11 @@ services:
     ports:
       - "3001:3000"
       - "8001:8001"
+    env_file:
+      - .env
     environment:
       - CUSTOM_USER=adam
       - PASSWORD=mt5testing
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - NEWSAPI_KEY=${NEWSAPI_KEY}
-      - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID:-}
-      - REDDIT_CLIENT_SECRET=${REDDIT_CLIENT_SECRET:-}
-      - REDDIT_USER_AGENT=${REDDIT_USER_AGENT:-trade_bot/1.0}
       - DB_HOST=trade-db
       - DB_PORT=5432
       - DB_NAME=trade
@@ -44,9 +41,6 @@ services:
       - DB_PASSWORD=mt5testing
       - MT5_HOST=localhost
       - MT5_PORT=8001
-      - N8N_URL=${N8N_URL:-}
-    env_file:
-      - .env
 
 volumes:
   trade-db-data:

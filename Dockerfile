@@ -6,6 +6,10 @@ RUN pip install --break-system-packages rpyc==5.2.3 plumbum==1.7.0 pyparsing==3.
 # Fix le script start.sh pour ne pas passer -w wine python.exe
 RUN sed -i 's/python3 -m mt5linux --host 0.0.0.0 -p $mt5server_port -w $wine_executable python.exe/python3 -m mt5linux --host 0.0.0.0 -p $mt5server_port/' /Metatrader/start.sh
 
+# Fix NumPy conflict dans Wine Python (MetaTrader5 nécessite numpy<2)
+ENV WINEPREFIX=/config/.wine
+RUN wine python -m pip install "numpy<2" --quiet 2>/dev/null || true
+
 # Installe Python3 venv et pip proprement
 RUN apt-get update && apt-get install -y python3-pip python3-venv python3-full --no-install-recommends && rm -rf /var/lib/apt/lists/*
 
