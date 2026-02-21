@@ -474,7 +474,7 @@ API Key: (dans .env)
 ```
 Client ID: (dans .env - optionnel)
 Client Secret: (dans .env - optionnel)
-User Agent: mobyr_trade_bot/1.0
+User Agent: trade_bot/1.0
 
 Note: Optionnel. Si les credentials sont vides, le module Reddit tourne sans erreur.
 Pour créer: reddit.com/prefs/apps → app script → http://localhost:8080
@@ -484,7 +484,7 @@ Pour créer: reddit.com/prefs/apps → app script → http://localhost:8080
 ```
 Host: localhost
 Port: 5432
-Database: mobyr_trade
+Database: trade
 Username: adam
 Password: mt5testing
 ```
@@ -617,7 +617,7 @@ ON CONFLICT (key) DO NOTHING;
 ## 20. PROMPT SYSTÈME IA
 
 ```
-Tu es un algorithme de trading expert basé sur la stratégie Mobyr Trade (SMC/ICT).
+Tu es un algorithme de trading expert basé sur la stratégie Trade (SMC/ICT).
 
 ## ASSETS TRADÉS
 - XAUUSD (Or spot CFD)
@@ -725,12 +725,12 @@ NEWSAPI_KEY=ton_api_key
 # Reddit (optionnel - laisser vide si non utilisé)
 REDDIT_CLIENT_ID=
 REDDIT_CLIENT_SECRET=
-REDDIT_USER_AGENT=mobyr_trade_bot/1.0
+REDDIT_USER_AGENT=trade_bot/1.0
 
 # PostgreSQL (VPS)
 DB_HOST=localhost
 DB_PORT=5432
-DB_NAME=mobyr_trade
+DB_NAME=trade
 DB_USER=adam
 DB_PASSWORD=mt5testing
 
@@ -788,5 +788,5 @@ htmlcov/
 
 ---
 
-*Document de référence pour le bot de trading Mobyr Trade*
+*Document de référence pour le bot de trading Trade*
 *Stack : Python + MT5 + Groq/Llama 3.3 + PostgreSQL + n8n*

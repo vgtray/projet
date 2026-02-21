@@ -305,7 +305,7 @@ if __name__ == "__main__":
     logger = logging.getLogger(__name__)
 
     logger.info("=" * 50)
-    logger.info("Mobyr Trade Bot - Démarrage")
+    logger.info("Trade Bot - Démarrage")
     logger.info("Assets: %s", config.ASSETS)
     logger.info("Session NY: %s - %s Paris", config.NY_SESSION_START, config.NY_SESSION_END)
     logger.info("=" * 50)

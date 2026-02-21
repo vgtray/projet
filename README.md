@@ -1,4 +1,4 @@
-# Mobyr Trade Bot
+# Trade Bot
 
 Bot de trading automatisé basé sur la stratégie SMC/ICT (Smart Money Concepts), opérant sur **XAUUSD** et **NAS100** en timeframe M5.
 

@@ -12,12 +12,12 @@ NEWSAPI_KEY = os.getenv("NEWSAPI_KEY", "")
 # --- Reddit ---
 REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID", "")
 REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET", "")
-REDDIT_USER_AGENT = os.getenv("REDDIT_USER_AGENT", "mobyr_trade_bot/1.0")
+REDDIT_USER_AGENT = os.getenv("REDDIT_USER_AGENT", "trade_bot/1.0")
 
 # --- PostgreSQL ---
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = int(os.getenv("DB_PORT", "5432"))
-DB_NAME = os.getenv("DB_NAME", "mobyr_trade")
+DB_NAME = os.getenv("DB_NAME", "trade")
 DB_USER = os.getenv("DB_USER", "adam")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 

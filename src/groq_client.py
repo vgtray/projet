@@ -88,7 +88,7 @@ class GroqAnalyzer:
 
     def _build_system_prompt(self) -> str:
         return (
-            "Tu es un algorithme de trading expert basé sur la stratégie Mobyr Trade (SMC/ICT).\n"
+            "Tu es un algorithme de trading expert basé sur la stratégie Trade (SMC/ICT).\n"
             "\n"
             "## ASSETS TRADÉS\n"
             "- XAUUSD (Or spot CFD)\n"

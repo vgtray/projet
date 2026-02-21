@@ -226,7 +226,7 @@ class MT5Client:
                 "tp": tp_price,
                 "deviation": 20,
                 "magic": 123456,
-                "comment": "mobyr_bot",
+                "comment": "bot",
                 "type_time": self.mt5.ORDER_TIME_GTC,
                 "type_filling": self.mt5.ORDER_FILLING_IOC,
             }
@@ -302,7 +302,7 @@ class MT5Client:
                 "price": price,
                 "deviation": 20,
                 "magic": 123456,
-                "comment": "mobyr_bot_close",
+                "comment": "bot_close",
                 "type_time": self.mt5.ORDER_TIME_GTC,
                 "type_filling": self.mt5.ORDER_FILLING_IOC,
             }
