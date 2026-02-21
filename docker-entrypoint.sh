@@ -1,9 +1,14 @@
 #!/bin/bash
 set -e
 
-echo "=== Démarrage MT5 + Wine ==="
-/init &
+echo "=== Démarrage Wine + MetaTrader5 ==="
+export WINEPREFIX=/config/.wine
+export DISPLAY=:0
 
+# Lance Wine + MT5 en arrière-plan
+/Metatrader/start.sh &
+
+# Attend que le serveur RPyC soit prêt (port 8001)
 echo "=== Attente du serveur RPyC MT5 (port 8001) ==="
 MAX_WAIT=180
 WAITED=0
