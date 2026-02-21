@@ -75,6 +75,7 @@ CREATE INDEX IF NOT EXISTS idx_signals_recent_dedup ON signals(asset, direction,
 CREATE TABLE IF NOT EXISTS trades (
     id SERIAL PRIMARY KEY,
     signal_id INTEGER REFERENCES signals(id),
+    mt5_ticket BIGINT,
     asset VARCHAR(10) NOT NULL,
     entry_time TIMESTAMPTZ NOT NULL,
     exit_time TIMESTAMPTZ,
@@ -91,6 +92,7 @@ CREATE TABLE IF NOT EXISTS trades (
 );
 
 CREATE INDEX IF NOT EXISTS idx_trades_signal_id ON trades(signal_id);
+CREATE INDEX IF NOT EXISTS idx_trades_mt5_ticket ON trades(mt5_ticket) WHERE mt5_ticket IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_trades_status ON trades(status);
 CREATE INDEX IF NOT EXISTS idx_trades_asset_entry ON trades(asset, entry_time);
 
@@ -131,6 +133,18 @@ INSERT INTO bot_state (key, value) VALUES ('last_analyzed_XAUUSD', '')
 ON CONFLICT (key) DO NOTHING;
 INSERT INTO bot_state (key, value) VALUES ('last_analyzed_NAS100', '')
 ON CONFLICT (key) DO NOTHING;
+
+-- Migration : ajouter mt5_ticket si colonne absente (idempotent)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'trades' AND column_name = 'mt5_ticket'
+    ) THEN
+        ALTER TABLE trades ADD COLUMN mt5_ticket BIGINT;
+        CREATE INDEX idx_trades_mt5_ticket ON trades(mt5_ticket) WHERE mt5_ticket IS NOT NULL;
+    END IF;
+END $$;
 """
 
 
@@ -186,6 +200,25 @@ def save_signal(signal_data: dict) -> int | None:
         logger.error("Erreur save_signal : %s", exc)
         conn.rollback()
         return None
+    finally:
+        conn.close()
+
+
+def mark_signal_executed(signal_id: int):
+    """Met à jour le champ executed du signal."""
+    conn = get_connection()
+    if conn is None:
+        return
+    try:
+        with get_cursor(conn) as cur:
+            cur.execute(
+                "UPDATE signals SET executed = TRUE WHERE id = %s",
+                (signal_id,),
+            )
+        conn.commit()
+    except psycopg2.Error as exc:
+        logger.error("Erreur mark_signal_executed : %s", exc)
+        conn.rollback()
     finally:
         conn.close()
 
@@ -285,7 +318,7 @@ def check_duplicate_signal(asset: str, direction: str, sweep_level: str) -> bool
                    WHERE asset = %s
                      AND direction = %s
                      AND sweep_level = %s
-                     AND timestamp > NOW() - INTERVAL '%s minutes'""",
+                     AND timestamp > NOW() - make_interval(mins => %s)""",
                 (asset, direction, sweep_level, config.DEDUP_WINDOW_MINUTES),
             )
             row = cur.fetchone()
@@ -371,12 +404,13 @@ def save_trade(signal_id: int, trade_data: dict) -> int | None:
         with get_cursor(conn) as cur:
             cur.execute(
                 """INSERT INTO trades
-                    (signal_id, asset, entry_time, direction,
+                    (signal_id, mt5_ticket, asset, entry_time, direction,
                      entry_price, sl_price, tp_price, lot_size, status)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'open')
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'open')
                    RETURNING id""",
                 (
                     signal_id,
+                    trade_data.get("mt5_ticket"),
                     trade_data["asset"],
                     trade_data["entry_time"],
                     trade_data["direction"],
@@ -430,7 +464,7 @@ def get_open_trades() -> list:
     try:
         with get_cursor(conn) as cur:
             cur.execute(
-                """SELECT id, signal_id, asset, entry_time, direction,
+                """SELECT id, signal_id, mt5_ticket, asset, entry_time, direction,
                           entry_price, sl_price, tp_price, lot_size
                    FROM trades WHERE status = 'open'"""
             )

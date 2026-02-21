@@ -42,22 +42,20 @@ class SentimentAnalyzer:
             except Exception as exc:
                 logger.warning("Impossible d'initialiser NewsAPI : %s", exc)
 
-        # Reddit — mode authentifié ou lecture publique
-        try:
-            if config.REDDIT_CLIENT_ID:
+        # Reddit — mode authentifié uniquement (pas de mode anonyme fiable)
+        if config.REDDIT_CLIENT_ID:
+            try:
                 self._reddit = praw.Reddit(
                     client_id=config.REDDIT_CLIENT_ID,
                     client_secret=config.REDDIT_CLIENT_SECRET,
                     user_agent=config.REDDIT_USER_AGENT,
                 )
-            else:
-                self._reddit = praw.Reddit(
-                    client_id=None,
-                    client_secret=None,
-                    user_agent=config.REDDIT_USER_AGENT,
-                )
-        except Exception as exc:
-            logger.warning("Impossible d'initialiser Reddit (praw) : %s", exc)
+            except Exception as exc:
+                logger.warning("Impossible d'initialiser Reddit (praw) : %s", exc)
+                self._reddit = None
+        else:
+            logger.warning("REDDIT_CLIENT_ID non configuré — sentiment Reddit désactivé")
+            self._reddit = None
 
     # ------------------------------------------------------------------
     # Point d'entrée

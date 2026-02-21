@@ -43,14 +43,10 @@ class TradeMonitor:
             return
 
         mt5_tickets = {p["ticket"] for p in mt5_positions}
-        mt5_by_symbol_dir = {}
-        for p in mt5_positions:
-            key = (p["symbol"], p["type"])
-            mt5_by_symbol_dir.setdefault(key, []).append(p)
 
         for trade_db in open_trades_db:
             try:
-                self._process_trade(trade_db, mt5_tickets, mt5_by_symbol_dir)
+                self._process_trade(trade_db, mt5_tickets)
             except Exception as exc:
                 logger.error(
                     "Erreur traitement trade #%s : %s",
@@ -61,18 +57,24 @@ class TradeMonitor:
     # Traitement d'un trade
     # ------------------------------------------------------------------
 
-    def _process_trade(self, trade_db: dict, mt5_tickets: set, mt5_by_symbol_dir: dict):
-        """Vérifie si un trade DB est encore ouvert côté MT5."""
+    def _process_trade(self, trade_db: dict, mt5_tickets: set):
+        """Vérifie si un trade DB est encore ouvert côté MT5 (matching par ticket)."""
         symbol = trade_db["asset"]
         direction = trade_db["direction"]
         trade_id = trade_db["id"]
+        mt5_ticket = trade_db.get("mt5_ticket")
 
-        # Chercher la position MT5 correspondante par symbol + direction
-        key = (symbol, direction)
-        matching_positions = mt5_by_symbol_dir.get(key, [])
-
-        if matching_positions:
+        # Matching fiable par ticket MT5
+        if mt5_ticket and mt5_ticket in mt5_tickets:
             return  # Position encore ouverte, rien à faire
+
+        # Fallback si pas de ticket (anciens trades sans mt5_ticket)
+        if mt5_ticket is None:
+            logger.warning(
+                "Trade #%d sans mt5_ticket — impossible de matcher fiablement, skip",
+                trade_id,
+            )
+            return
 
         # La position n'existe plus → trade fermé
         closed_info = self._get_closed_trade_info(symbol, trade_db["entry_time"])

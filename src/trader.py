@@ -24,8 +24,8 @@ class Trader:
     # Point d'entrée
     # ------------------------------------------------------------------
 
-    def execute_if_valid(self, signal: dict) -> bool:
-        """Reçoit le signal JSON de Groq, vérifie toutes les conditions, exécute si valide."""
+    def execute_if_valid(self, signal: dict, signal_id: int) -> bool:
+        """Reçoit le signal JSON de Groq + son signal_id déjà persisté, vérifie les conditions, exécute si valide."""
         symbol = signal.get("asset", "UNKNOWN")
 
         # 1. trade_valid
@@ -66,31 +66,7 @@ class Trader:
 
         lot_size = self.risk.calculate_lot_size(symbol, entry_price, sl_price)
 
-        # 7. Sauvegarder le signal en DB
-        signal_data = {
-            "asset": symbol,
-            "timestamp": datetime.now(PARIS_TZ),
-            "direction": signal.get("direction"),
-            "scenario": signal.get("scenario"),
-            "confidence": signal.get("confidence"),
-            "entry_price": entry_price,
-            "sl_price": sl_price,
-            "tp_price": tp_price,
-            "rr_ratio": rr,
-            "confluences_used": signal.get("confluences_used", []),
-            "sweep_level": signal.get("sweep_level"),
-            "news_sentiment": signal.get("news_sentiment"),
-            "social_sentiment": signal.get("social_sentiment"),
-            "trade_valid": True,
-            "reason": signal.get("reason", ""),
-            "executed": False,
-        }
-        signal_id = self.db.save_signal(signal_data)
-        if signal_id is None:
-            logger.error("Impossible de sauvegarder le signal en DB → skip exécution")
-            return False
-
-        # 8. Placer et sauvegarder
+        # 7. Placer et sauvegarder (signal déjà en DB via main.py)
         return self._place_and_save(signal, signal_id, lot_size)
 
     # ------------------------------------------------------------------
@@ -144,9 +120,11 @@ class Trader:
             )
             return False
 
-        # Sauvegarder le trade en DB
+        # Sauvegarder le trade en DB (avec le ticket MT5 pour matching fiable)
+        mt5_ticket = result.get("ticket")
         trade_data = {
             "asset": symbol,
+            "mt5_ticket": mt5_ticket,
             "entry_time": datetime.now(PARIS_TZ),
             "direction": direction,
             "entry_price": entry_price,
@@ -156,10 +134,6 @@ class Trader:
         }
         trade_id = self.db.save_trade(signal_id, trade_data)
 
-        # Marquer le signal comme exécuté
-        if trade_id is not None:
-            self._mark_signal_executed(signal_id)
-
         logger.info(
             "Trade exécuté: %s %s | Entry: %.5f | SL: %.5f | TP: %.5f | Lot: %.5f | Trade #%s",
             symbol, direction.upper(), entry_price, sl_price, tp_price, lot_size,
@@ -167,20 +141,3 @@ class Trader:
         )
         return True
 
-    def _mark_signal_executed(self, signal_id: int):
-        """Met à jour le champ executed du signal."""
-        conn = self.db.get_connection()
-        if conn is None:
-            return
-        try:
-            with self.db.get_cursor(conn) as cur:
-                cur.execute(
-                    "UPDATE signals SET executed = TRUE WHERE id = %s",
-                    (signal_id,),
-                )
-            conn.commit()
-        except Exception as exc:
-            logger.error("Erreur mark_signal_executed : %s", exc)
-            conn.rollback()
-        finally:
-            conn.close()

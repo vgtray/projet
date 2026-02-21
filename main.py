@@ -221,7 +221,10 @@ class TradingBot:
             "reason": signal_result.get("reason", ""),
             "executed": False,
         }
-        await asyncio.to_thread(database.save_signal, signal_data)
+        signal_id = await asyncio.to_thread(database.save_signal, signal_data)
+        if signal_id is None:
+            self.logger.error("Impossible de sauvegarder le signal en DB pour %s", symbol)
+            return
 
         # 8. Si non valide → warning et stop
         if not signal_result.get("trade_valid"):
@@ -243,8 +246,10 @@ class TradingBot:
             return
 
         # 10. Exécution MT5
-        executed = await asyncio.to_thread(self.trader.execute_if_valid, signal_result)
+        executed = await asyncio.to_thread(self.trader.execute_if_valid, signal_result, signal_id)
         if executed:
+            # Marquer le signal comme exécuté
+            await asyncio.to_thread(database.mark_signal_executed, signal_id)
             entry = signal_result.get("entry_price")
             sl = signal_result.get("sl_price")
             tp = signal_result.get("tp_price")
