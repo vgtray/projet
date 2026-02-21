@@ -18,7 +18,7 @@ services:
   trade-bot:
     build: .
     container_name: trade-bot
-    entrypoint: ["/docker-entrypoint.sh"]
+    # Pas d'entrypoint custom : /init (s6-overlay) gère Xvfb + Wine + MT5 + RPyC + trade-bot service
     restart: unless-stopped
     depends_on:
       trade-db:

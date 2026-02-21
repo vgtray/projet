@@ -1,29 +1,22 @@
 #!/bin/bash
-set -e
+# Service s6 : lancé automatiquement par /init après Wine + MT5 + RPyC
 
-echo "=== Démarrage Wine + MetaTrader5 ==="
-export WINEPREFIX=/config/.wine
-export DISPLAY=:0
-
-# Lance Wine + MT5 en arrière-plan
-/Metatrader/start.sh &
-
-# Attend que le serveur RPyC soit prêt (port 8001)
-echo "=== Attente du serveur RPyC MT5 (port 8001) ==="
-MAX_WAIT=180
+echo "=== [trade-bot] Attente du serveur RPyC MT5 (port 8001) ==="
+MAX_WAIT=300
 WAITED=0
 while ! ss -tlnp | grep -q ':8001'; do
     if [ $WAITED -ge $MAX_WAIT ]; then
-        echo "ERREUR: MT5 RPyC server n'a pas démarré après ${MAX_WAIT}s"
-        exit 1
+        echo "[trade-bot] ERREUR: RPyC non disponible après ${MAX_WAIT}s, on réessaie dans 60s"
+        sleep 60
+        WAITED=0
     fi
-    echo "Attente MT5 RPyC... (${WAITED}s/${MAX_WAIT}s)"
-    sleep 5
-    WAITED=$((WAITED + 5))
+    echo "[trade-bot] Attente MT5 RPyC... (${WAITED}s/${MAX_WAIT}s)"
+    sleep 10
+    WAITED=$((WAITED + 10))
 done
 
-echo "=== Port 8001 ouvert. Attente connexion broker MT5 (20s) ==="
-sleep 20
+echo "=== [trade-bot] Port 8001 ouvert. Stabilisation 30s ==="
+sleep 30
 
-echo "=== Lancement du bot de trading ==="
+echo "=== [trade-bot] Lancement du bot ==="
 exec /app/venv/bin/python /app/main.py
