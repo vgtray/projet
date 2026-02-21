@@ -10,8 +10,11 @@ RUN sed -i 's/python3 -m mt5linux --host 0.0.0.0 -p $mt5server_port -w $wine_exe
 ENV WINEPREFIX=/config/.wine
 RUN wine python -m pip install "numpy<2" --quiet 2>/dev/null || true
 
-# Installe Python3 venv et pip proprement
-RUN apt-get update && apt-get install -y python3-pip python3-venv python3-full --no-install-recommends && rm -rf /var/lib/apt/lists/*
+# Supprime le repo WineHQ (clé GPG expirée) - Wine déjà installé dans l'image de base
+RUN rm -f /etc/apt/sources.list.d/winehq* /etc/apt/sources.list.d/wine* 2>/dev/null || true && \
+    apt-get update && \
+    apt-get install -y python3-pip python3-venv python3-full --no-install-recommends && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copie le projet
 WORKDIR /app
