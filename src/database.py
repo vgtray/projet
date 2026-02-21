@@ -69,8 +69,7 @@ CREATE TABLE IF NOT EXISTS signals (
 
 CREATE INDEX IF NOT EXISTS idx_signals_asset_timestamp ON signals(asset, timestamp);
 CREATE INDEX IF NOT EXISTS idx_signals_trade_valid ON signals(trade_valid);
-CREATE INDEX IF NOT EXISTS idx_signals_recent_dedup ON signals(asset, direction, sweep_level, timestamp)
-    WHERE timestamp > NOW() - INTERVAL '15 minutes';
+CREATE INDEX IF NOT EXISTS idx_signals_recent_dedup ON signals(asset, direction, sweep_level, timestamp);
 
 CREATE TABLE IF NOT EXISTS trades (
     id SERIAL PRIMARY KEY,

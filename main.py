@@ -288,6 +288,7 @@ def handle_shutdown(signum, frame):
 
     if _bot_instance is not None:
         _bot_instance.running = False
+        
 
     # Annuler les tâches asyncio en cours
     loop = asyncio.get_event_loop()
