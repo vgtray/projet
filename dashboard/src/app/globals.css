@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-bg: #0a0a0f;
+  --color-surface: #12121a;
+  --color-surface-hover: #1a1a26;
+  --color-border: #1e1e2e;
+  --color-border-bright: #2a2a3e;
+  --color-text-primary: #e4e4e7;
+  --color-text-secondary: #71717a;
+  --color-text-muted: #52525b;
+  --color-profit: #22c55e;
+  --color-profit-dim: #166534;
+  --color-loss: #ef4444;
+  --color-loss-dim: #7f1d1d;
+  --color-info: #3b82f6;
+  --color-info-dim: #1e3a5f;
+  --color-warning: #eab308;
+  --color-warning-dim: #713f12;
+  --color-neutral: #71717a;
+  --color-neutral-dim: #27272a;
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-bright) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--color-border-bright);
+  border-radius: 3px;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Glow effects for profit/loss */
+.glow-profit {
+  text-shadow: 0 0 12px rgba(34, 197, 94, 0.4);
+}
+
+.glow-loss {
+  text-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+}
+
+/* Terminal scanline effect for log viewer */
+.terminal-bg {
+  background:
+    linear-gradient(rgba(10, 10, 15, 0) 50%, rgba(0, 0, 0, 0.15) 50%),
+    linear-gradient(90deg, rgba(34, 197, 94, 0.02), rgba(34, 197, 94, 0.01), rgba(34, 197, 94, 0.02));
+  background-size: 100% 4px, 100% 100%;
+}
+
+/* Pulse animation for bot status */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* Confidence bar animation */
+@keyframes fill-bar {
+  from { width: 0%; }
+}
+
+.animate-fill {
+  animation: fill-bar 0.8s ease-out;
+}
