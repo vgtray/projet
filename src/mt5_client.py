@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 PARIS_TZ = pytz.timezone(Config.TIMEZONE)
 
 SYMBOL_ALIASES = {
-    "US100": ["US100", "NAS100.cash", "US100.cash"],
+    "US100": ["NAS100", "US100", "NAS100.cash", "US100.cash"],
     "XAUUSD": ["XAUUSD"],
 }
 
