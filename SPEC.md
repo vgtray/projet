@@ -9,7 +9,7 @@
 | Asset | Type | Timeframe |
 |-------|------|-----------|
 | XAUUSD | Or spot CFD | M5 |
-| NAS100 | Nasdaq 100 Cash CFD | M5 |
+| US100 (NAS100.cash) | Nasdaq 100 Cash CFD | M5 |
 
 **Risque par trade** : 1% du capital
 
@@ -23,7 +23,7 @@
 | London | 09h00 - 14h30 | Préparation du marché |
 | **New York** | **14h30 - 21h00** | **Session active de trading** |
 
-**Règle** : 
+**Règle** :
 - UNIQUEMENT trading pendant New York (14h30 - 21h00 Paris)
 - En dehors de New York → `{"direction": "none", "reason": "hors session"}`
 
@@ -77,7 +77,7 @@ Le bot trade **UNIQUEMENT** sur des confluences :
 - Le marché dépasse un niveau puis repart dans l'autre sens
 - Les traders piégés ferment leurs positions
 - On trade dans le sens inverse du sweep
-- **Cible** : prochain high ou low visible opposed
+- **Cible** : prochain high ou low visible opposé
 
 ### Scénario 2 - Continuation
 - Le marché dépasse un niveau et continue dans le même sens
@@ -125,15 +125,14 @@ Cette valeur est calculée dynamiquement à chaque trade :
 # Récupérer la valeur du pip depuis MT5
 symbol_info = mt5.symbol_info(symbol)
 tick_value = symbol_info.trade_tick_value  # Valeur pour 1 tick (pas de pip)
-# Pour la plupart des symboles CFD: tick_value = pip_value pour 1 lot
 pip_value = tick_value  # Utiliser directement
 
 lot_size = (capital * 0.01) / (distance_sl_pips * pip_value)
 ```
 
-**Important** : 
+**Important** :
 - XAUUSD : `trade_tick_value` ≈ 0.01 $ par pip pour 1 lot (chez Vantage)
-- NAS100 : `trade_tick_value` ≈ 1 $ par pip pour 1 lot (chez Vantage)
+- US100 : `trade_tick_value` ≈ 1 $ par pip pour 1 lot (chez Vantage)
 - **Jamais de valeur hardcodée** - toujours récupérer depuis MT5
 
 **Jamais de lot size fixe**.
@@ -160,7 +159,7 @@ Le bot doit répondre **UNIQUEMENT** en JSON valide, rien d'autre :
 
 ```json
 {
-  "asset": "XAUUSD | NAS100",
+  "asset": "XAUUSD | US100",
   "direction": "long | short | none",
   "scenario": "reversal | continuation | unclear | none",
   "confidence": 0-100,
@@ -191,15 +190,21 @@ Le bot doit répondre **UNIQUEMENT** en JSON valide, rien d'autre :
 |-----------|--------|
 | **VPS** | OVH 31GB RAM, 8 cores |
 | **OS** | Linux (Ubuntu/Debian) |
-| **Orchestration** | n8n |
+| **Orchestration** | NanoClaw (agent IA autonome, Docker) |
 | **MT5** | Docker container sur le VPS, port 8001 localhost |
 
 ### Langage & Runtime
 
 | Composant | Détail |
 |-----------|--------|
-| **Langage** | Python uniquement |
-| **IA d'analyse** | Groq API + Llama 3.3 70B (gratuit, ~500 tokens/sec) |
+| **Langage** | Python |
+| **IA principale** | MiniMax M2.5 API (tool use natif, agentic, compatible OpenAI SDK) |
+| **IA fallback** | Groq API + Llama 3.3 70B (si MiniMax timeout ou indisponible) |
+
+**Routing LLM** :
+- MiniMax M2.5 est le cerveau principal — meilleur sur les tâches agentic/tool use
+- Groq Llama 3.3 prend le relais automatiquement si MiniMax ne répond pas sous 10s
+- Si fallback actif → `trade_valid: false` sauf signal très fort (confidence > 85)
 
 ### Données Marché
 
@@ -220,6 +225,7 @@ Le bot doit répondre **UNIQUEMENT** en JSON valide, rien d'autre :
 | `trades` | Résultat réel du trade (TP/SL/fermeture manuelle) |
 | `performance_stats` | Agrégats par pattern (pour auto-calibration) |
 | `daily_trade_counts` | Compteur journalier de trades (anti-overtrade) |
+| `bot_state` | Persistance état entre redémarrages |
 
 **Auto-calibration** : Le bot injecte un résumé des performances passées similaires dans chaque prompt pour que l'IA s'auto-calibre avec le temps.
 
@@ -228,23 +234,66 @@ Le bot doit répondre **UNIQUEMENT** en JSON valide, rien d'autre :
 | Source | Détail |
 |--------|--------|
 | **News** | NewsAPI |
-| **Reddit** | r/Forex, r/Gold (pour XAUUSD), r/investing, r/stocks (pour NAS100) |
+| **Reddit** | r/Forex, r/Gold (pour XAUUSD), r/investing, r/stocks (pour US100) |
 | **Twitter** | twscrape (optionnel, sans credentials pour l'instant) |
 
-### Interface
+### Interface & Monitoring
 
 | Phase | Interface |
 |-------|-----------|
 | **Phase 1** | CLI |
-| **Phase future** | Dashboard Next.js |
+| **Phase 2** | Dashboard Next.js (monitoring temps réel, PnL, logs agent, override manuel) |
+
+**Telegram** : Optionnel — uniquement pour alertes critiques (trade ouvert/fermé, drawdown important) si le dashboard n'est pas sous les yeux. Pas de contrôle principal via Telegram.
 
 ---
 
-## 13. FLUX DE TRAITEMENT
+## 13. ARCHITECTURE GLOBALE
+
+```
+┌──────────────────────────────────────────────────┐
+│            Dashboard Next.js                     │
+│  - Live trades / PnL                             │
+│  - Logs agent en temps réel                      │
+│  - Status des sources de data                    │
+│  - Override manuel                               │
+└──────────────────┬───────────────────────────────┘
+                   │
+┌──────────────────▼───────────────────────────────┐
+│              NanoClaw Agent (Docker OVH)         │
+│  ┌─────────────────────────────────────────────┐ │
+│  │  MiniMax M2.5 API (principal)               │ │
+│  │  → Tool use natif, décisions agentic        │ │
+│  └─────────────────────────────────────────────┘ │
+│  ┌─────────────────────────────────────────────┐ │
+│  │  Groq Llama 3.3 70B (fallback auto)         │ │
+│  │  → Si MiniMax timeout ou indisponible       │ │
+│  └─────────────────────────────────────────────┘ │
+└──────────────────┬───────────────────────────────┘
+                   │
+        ┌──────────▼──────────┐
+        │  Sources de données │
+        │  ├── MT5 (prix live)│
+        │  ├── NewsAPI        │
+        │  ├── Reddit         │
+        │  └── twscrape       │
+        └──────────┬──────────┘
+                   │
+┌──────────────────▼───────────────────────────────┐
+│           MT5 Docker OVH                         │
+│  ports 3001 / 8001                               │
+│  ├── XAUUSD  (M5, session NY uniquement)         │
+│  └── US100   (M5, session NY uniquement)         │
+└──────────────────────────────────────────────────┘
+```
+
+---
+
+## 14. FLUX DE TRAITEMENT
 
 ### Boucle principale (sur nouvelle bougie M5 uniquement)
 
-**Important** : Le bot n'analyse PAS à intervalle fixe. Il vérifie si une nouvelle bougie M5 est fermée et n'appelle Groq que dans ce cas.
+**Important** : Le bot n'analyse PAS à intervalle fixe. Il vérifie si une nouvelle bougie M5 est fermée et n'appelle le LLM que dans ce cas.
 
 ```
 [Timer: toutes les 10 secondes]
@@ -252,13 +301,14 @@ Le bot doit répondre **UNIQUEMENT** en JSON valide, rien d'autre :
        ▼
 ┌──────────────────┐
 │1. Fetch dernières│
-│   bougies MT5   │
+│   bougies MT5    │
 └────────┬─────────┘
        │
        ▼
 ┌──────────────────┐
-│2. Comparer timestamp│
-│   avec dernière │
+│2. Comparer       │
+│   timestamp avec │
+│   dernière       │
 │   analysée       │
 └────────┬─────────┘
        │
@@ -271,39 +321,43 @@ Le bot doit répondre **UNIQUEMENT** en JSON valide, rien d'autre :
                    │
                    ▼
 ┌──────────────────┐
-│ 3. Calcul niveaux │
-│ Asia/London/PrevD│
+│3. Calcul niveaux │
+│   Asia/London/   │
+│   PrevDay        │
 └────────┬─────────┘
        │
        ▼
 ┌──────────────────┐
-│4. Détect confluence│
-│  FVG/OB/iFVG     │
+│4. Détect         │
+│   confluences    │
+│   FVG/OB/iFVG    │
 └────────┬─────────┘
        │
        ▼
 ┌──────────────────┐
 │5. Fetch sentiment│
-│  NewsAPI/Reddit  │
+│   NewsAPI/Reddit │
 └────────┬─────────┘
        │
        ▼
 ┌──────────────────┐
 │6. Query DB       │
-│  Perf. patterns  │
+│   Perf. patterns │
 └────────┬─────────┘
        │
        ▼
 ┌──────────────────┐
 │7. Build prompt   │
-│  + contexte perf │
+│   + contexte     │
+│   performances   │
 └────────┬─────────┘
        │
        ▼
-┌──────────────────┐
-│8. Call Groq API  │
-│   Llama 3.3 70B  │
-└────────┬─────────┘
+┌──────────────────────────────┐
+│8. Call MiniMax M2.5 API      │
+│   [si timeout → Groq fallback│
+│    Llama 3.3 70B]            │
+└────────┬─────────────────────┘
        │
        ▼
 ┌──────────────────┐
@@ -314,13 +368,14 @@ Le bot doit répondre **UNIQUEMENT** en JSON valide, rien d'autre :
        ▼
 ┌──────────────────┐
 │10. Save signal   │
-│   PostgreSQL     │
+│    PostgreSQL    │
 └────────┬─────────┘
        │
        ▼
 ┌──────────────────┐
-│11. Vérif duplication│
-│   15 min window  │
+│11. Vérif         │
+│    duplication   │
+│    15 min window │
 └────────┬─────────┘
        │
        ▼
@@ -331,9 +386,9 @@ Le bot doit répondre **UNIQUEMENT** en JSON valide, rien d'autre :
        │
        ▼
 ┌──────────────────┐
-│13. Mettre à jour │
-│   last_analyzed  │
-│   timestamp      │
+│13. Update        │
+│    last_analyzed │
+│    timestamp     │
 └──────────────────┘
 ```
 
@@ -344,37 +399,46 @@ Le bot doit répondre **UNIQUEMENT** en JSON valide, rien d'autre :
        ▼
 ┌──────────────────┐
 │1. Fetch positions│
-│    MT5          │
+│   MT5            │
 └────────┬─────────┘
        │
        ▼
 ┌──────────────────┐
-│2. Détect TP/SL  │
+│2. Détect TP/SL   │
 │   touched        │
 └────────┬─────────┘
        │
        ▼
 ┌──────────────────┐
-│3. Update trades │
-│   table         │
+│3. Update trades  │
+│   table          │
 └────────┬─────────┘
        │
        ▼
 ┌──────────────────┐
-│4. Update perf   │
-│   stats         │
+│4. Update perf    │
+│   stats          │
 └────────┬─────────┘
        │
        ▼
 ┌──────────────────┐
-│5. Incrémente    │
-│   daily counter │
+│5. Incrémente     │
+│   daily counter  │
 └──────────────────┘
 ```
 
 ---
 
-## 14. GESTION DES ERREURS ET RÉsilience
+## 15. ORDRE DE DÉVELOPPEMENT
+
+1. **Fallback agent Python custom** (base solide et testable indépendamment)
+2. **MT5 Docker** branché dessus, tester les trades en demo
+3. **NanoClaw** par dessus comme couche intelligente avec MiniMax M2.5
+4. **Dashboard Next.js** pour monitorer tout ça en temps réel
+
+---
+
+## 16. GESTION DES ERREURS ET RÉSILIENCE
 
 ### Règle générale
 Le bot ne doit **jamais crasher définitivement**. Chaque appel externe doit être dans un try/except avec retry automatique.
@@ -385,9 +449,11 @@ Le bot ne doit **jamais crasher définitivement**. Chaque appel externe doit êt
 - **Logging** : chaque tentative est loggée
 
 ### Dégradation gracieuse
+
 | Service indisponible | Comportement |
 |---------------------|--------------|
-| **Groq API** | `trade_valid: false`, reason: "groq_unavailable", continuer |
+| **MiniMax API** | Switch automatique sur Groq fallback |
+| **Groq API (fallback)** | `trade_valid: false`, reason: "llm_unavailable", continuer |
 | **NewsAPI** | `news_sentiment: neutral`, continuer |
 | **Reddit** | `social_sentiment: neutral`, continuer |
 | **PostgreSQL** | Retry 3x, si échec → log error, continuer sans save |
@@ -403,7 +469,7 @@ Si la connexion RPyC échoue :
 
 ---
 
-## 15. LOGS
+## 17. LOGS
 
 ### Configuration
 - **Niveau INFO** : Chaque nouvelle bougie analysée, signal généré, trade exécuté
@@ -417,21 +483,23 @@ Si la connexion RPyC échoue :
 
 ### Format
 ```
-2026-02-21 14:30:00 [INFO] New M5 candle detected for XAUUSD
-2026-02-21 14:30:00 [INFO] Analyzing XAUUSD at 2045.50
-2026-02-21 14:30:01 [INFO] Signal: short | Valid: True | Confidence: 75%
-2026-02-21 14:30:02 [INFO] Trade executed: XAUUSD @ 2045.50, SL: 2046.00, TP: 2044.50
-2026-02-21 14:35:00 [INFO] New M5 candle detected for NAS100 (no analysis - outside NY session)
-2026-02-21 14:40:00 [WARNING] Setup detected but conditions not met for NAS100
-2026-02-21 14:45:00 [ERROR] Groq API unavailable, retrying (1/3)...
+2026-02-23 14:30:00 [INFO] New M5 candle detected for XAUUSD
+2026-02-23 14:30:00 [INFO] Analyzing XAUUSD at 2045.50
+2026-02-23 14:30:01 [INFO] LLM: MiniMax M2.5 (principal)
+2026-02-23 14:30:01 [INFO] Signal: short | Valid: True | Confidence: 75%
+2026-02-23 14:30:02 [INFO] Trade executed: XAUUSD @ 2045.50, SL: 2046.00, TP: 2044.50
+2026-02-23 14:35:00 [INFO] New M5 candle detected for US100 (no analysis - outside NY session)
+2026-02-23 14:40:00 [WARNING] Setup detected but conditions not met for US100
+2026-02-23 14:45:00 [WARNING] MiniMax timeout, switching to Groq fallback
+2026-02-23 14:45:01 [INFO] LLM: Groq Llama 3.3 70B (fallback)
 ```
 
 ---
 
-## 16. SÉCURITÉ
+## 18. SÉCURITÉ
 
 ### .gitignore
-Le fichier `.env` ne doit **jamais** être commité. Ajouter systématiquement :
+Le fichier `.env` ne doit **jamais** être commité :
 ```
 .env
 .env.*
@@ -447,9 +515,12 @@ __pycache__/
 - Utiliser uniquement `os.getenv()` ou `python-dotenv`
 - Aucune clé hardcodée
 
+### NanoClaw & isolation
+NanoClaw tourne dans un container Docker sur OVH avec filesystem isolation. Les agents n'ont accès qu'à ce qui est explicitement monté — le reste du système est hors de portée.
+
 ---
 
-## 17. DÉDUPLICATION DES SIGNAUX
+## 19. DÉDUPLICATION DES SIGNAUX
 
 Avant d'exécuter un trade, vérifier dans la table `signals` :
 - **Critères** : même asset, même direction, même sweep_level
@@ -458,11 +529,19 @@ Avant d'exécuter un trade, vérifier dans la table `signals` :
 
 ---
 
-## 18. API KEYS & CREDENTIALS
+## 20. API KEYS & CREDENTIALS
 
-### Groq API
+### MiniMax API (principal)
+```
+Base URL: https://api.minimax.io/v1
+API Key: (dans .env)
+Compatible OpenAI SDK: oui
+```
+
+### Groq API (fallback)
 ```
 API Key: (dans .env)
+Model: llama-3.3-70b-versatile
 ```
 
 ### NewsAPI
@@ -486,7 +565,7 @@ Host: localhost
 Port: 5432
 Database: trade
 Username: adam
-Password: mt5testing
+Password: (dans .env)
 ```
 
 ### MetaTrader 5
@@ -496,14 +575,9 @@ Server: VantageInternational-Demo
 Note: MT5 tourne en container Docker sur le VPS
 ```
 
-### n8n
-```
-URL: https://n8n.vjuya.me
-```
-
 ---
 
-## 19. SCHÉMA BASE DE DONNÉES (PostgreSQL)
+## 21. SCHÉMA BASE DE DONNÉES (PostgreSQL)
 
 ### Table : signals
 
@@ -526,12 +600,13 @@ CREATE TABLE signals (
     trade_valid BOOLEAN,
     reason TEXT,
     executed BOOLEAN DEFAULT FALSE,
+    llm_used VARCHAR(20),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX idx_signals_asset_timestamp ON signals(asset, timestamp);
 CREATE INDEX idx_signals_trade_valid ON signals(trade_valid);
-CREATE INDEX idx_signals_recent_dedup ON signals(asset, direction, sweep_level, timestamp) 
+CREATE INDEX idx_signals_recent_dedup ON signals(asset, direction, sweep_level, timestamp)
     WHERE timestamp > NOW() - INTERVAL '15 minutes';
 ```
 
@@ -595,7 +670,7 @@ CREATE TABLE daily_trade_counts (
 CREATE INDEX idx_daily_counts ON daily_trade_counts(asset, trade_date);
 ```
 
-### Table : bot_state (pour persistance état)
+### Table : bot_state
 
 ```sql
 CREATE TABLE bot_state (
@@ -605,23 +680,22 @@ CREATE TABLE bot_state (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Stocker le timestamp de la dernière bougie analysée
 INSERT INTO bot_state (key, value) VALUES ('last_analyzed_XAUUSD', '')
 ON CONFLICT (key) DO NOTHING;
-INSERT INTO bot_state (key, value) VALUES ('last_analyzed_NAS100', '')
+INSERT INTO bot_state (key, value) VALUES ('last_analyzed_US100', '')
 ON CONFLICT (key) DO NOTHING;
 ```
 
 ---
 
-## 20. PROMPT SYSTÈME IA
+## 22. PROMPT SYSTÈME IA
 
 ```
-Tu es un algorithme de trading expert basé sur la stratégie Trade (SMC/ICT).
+Tu es un algorithme de trading expert basé sur la stratégie SMC/ICT.
 
 ## ASSETS TRADÉS
 - XAUUSD (Or spot CFD)
-- NAS100 (Nasdaq 100 Cash CFD)
+- US100 (Nasdaq 100 Cash CFD)
 Timeframe : M5
 Risque par trade : 1% du capital
 
@@ -657,7 +731,7 @@ Si une seule condition manque → trade_valid: false
 Scénario 1 - Reversal :
 Le marché dépasse un niveau puis repart dans l'autre sens.
 Les traders piégés ferment → on trade dans le sens inverse du sweep.
-Cible : prochain high ou low visible opposed.
+Cible : prochain high ou low visible opposé.
 
 Scénario 2 - Continuation :
 Le marché dépasse un niveau et continue dans le même sens.
@@ -682,14 +756,14 @@ Cible : prochain high ou low dans le sens du mouvement.
 - Asia High/Low, London High/Low, PrevDay High/Low
 - Confluences détectées : FVG, OB, iFVG, sweep (calculés algorithmiquement)
 - News récentes sur l'asset (NewsAPI)
-- Sentiment Reddit (r/Forex, r/Gold pour XAUUSD / r/investing, r/stocks pour NAS100)
-- Stats de performances passées pour patterns similaires
+- Sentiment Reddit (r/Forex, r/Gold pour XAUUSD / r/investing, r/stocks pour US100)
+- Stats de performances passées pour patterns similaires (auto-calibration)
 
 ## FORMAT DE RÉPONSE OBLIGATOIRE
 Réponds UNIQUEMENT en JSON valide, rien d'autre :
 
 {
-  "asset": "XAUUSD | NAS100",
+  "asset": "XAUUSD | US100",
   "direction": "long | short | none",
   "scenario": "reversal | continuation | unclear | none",
   "confidence": 0-100,
@@ -711,13 +785,18 @@ Ne jamais halluciner des niveaux ou des confluences non présents dans les donn�
 
 ---
 
-## 21. FICHIER CONFIG (.env)
-
-Créer un fichier `.env` à la racine du projet :
+## 23. FICHIER CONFIG (.env)
 
 ```env
-# Groq
+# MiniMax API (principal)
+MINIMAX_API_KEY=ton_api_key
+MINIMAX_BASE_URL=https://api.minimax.io/v1
+MINIMAX_MODEL=MiniMax-M2.5
+LLM_TIMEOUT=10
+
+# Groq (fallback)
 GROQ_API_KEY=ton_api_key
+GROQ_MODEL=llama-3.3-70b-versatile
 
 # NewsAPI
 NEWSAPI_KEY=ton_api_key
@@ -732,19 +811,16 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=trade
 DB_USER=adam
-DB_PASSWORD=mt5testing
+DB_PASSWORD=
 
 # MetaTrader 5 (Docker RPyC)
 MT5_HOST=localhost
 MT5_PORT=8001
-
-# n8n
-N8N_URL=https://n8n.vjuya.me
 ```
 
 ---
 
-## 22. .GITIGNORE
+## 24. .GITIGNORE
 
 ```
 # Environment
@@ -788,5 +864,6 @@ htmlcov/
 
 ---
 
-*Document de référence pour le bot de trading Trade*
-*Stack : Python + MT5 + Groq/Llama 3.3 + PostgreSQL + n8n*
+*Document de référence pour le bot de trading SMC/ICT*
+*Stack : Python + MT5 Docker + NanoClaw + MiniMax M2.5 (fallback Groq Llama 3.3) + PostgreSQL + Dashboard Next.js*
+*VPS OVH — Broker Vantage International (demo)*
