@@ -50,8 +50,16 @@ export default function BotStatus() {
     if (toggling) return;
     setToggling(true);
     try {
-      const res = await fetch('/api/status/toggle', { method: 'POST' });
-      if (res.ok) setState(await res.json());
+      const action = state.paused ? 'resume' : 'pause';
+      const res = await fetch('/api/bot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setState(prev => ({ ...prev, paused: action === 'pause' }));
+      }
     } catch { /* silently fail */ }
     setToggling(false);
   }
