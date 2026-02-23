@@ -1,6 +1,5 @@
 -- Schéma PostgreSQL pour le bot de trading SMC/ICT
 -- Idempotent : peut être exécuté plusieurs fois sans erreur
-
 CREATE TABLE IF NOT EXISTS signals (
     id SERIAL PRIMARY KEY,
     asset VARCHAR(10) NOT NULL,
@@ -22,12 +21,9 @@ CREATE TABLE IF NOT EXISTS signals (
     llm_used VARCHAR(20),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
-
 CREATE INDEX IF NOT EXISTS idx_signals_asset_timestamp ON signals(asset, timestamp);
 CREATE INDEX IF NOT EXISTS idx_signals_trade_valid ON signals(trade_valid);
-CREATE INDEX IF NOT EXISTS idx_signals_recent_dedup ON signals(asset, direction, sweep_level, timestamp)
-    WHERE timestamp > NOW() - INTERVAL '15 minutes';
-
+CREATE INDEX IF NOT EXISTS idx_signals_recent_dedup ON signals(asset, direction, sweep_level, timestamp);
 CREATE TABLE IF NOT EXISTS trades (
     id SERIAL PRIMARY KEY,
     signal_id INTEGER REFERENCES signals(id),
@@ -46,11 +42,9 @@ CREATE TABLE IF NOT EXISTS trades (
     closed_reason VARCHAR(20),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
-
 CREATE INDEX IF NOT EXISTS idx_trades_signal_id ON trades(signal_id);
 CREATE INDEX IF NOT EXISTS idx_trades_status ON trades(status);
 CREATE INDEX IF NOT EXISTS idx_trades_asset_entry ON trades(asset, entry_time);
-
 CREATE TABLE IF NOT EXISTS performance_stats (
     id SERIAL PRIMARY KEY,
     pattern_type VARCHAR(50) NOT NULL,
@@ -64,9 +58,7 @@ CREATE TABLE IF NOT EXISTS performance_stats (
     last_updated TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(pattern_type, asset)
 );
-
 CREATE INDEX IF NOT EXISTS idx_perf_pattern_asset ON performance_stats(pattern_type, asset);
-
 CREATE TABLE IF NOT EXISTS daily_trade_counts (
     id SERIAL PRIMARY KEY,
     asset VARCHAR(10) NOT NULL,
@@ -74,16 +66,13 @@ CREATE TABLE IF NOT EXISTS daily_trade_counts (
     closed_trades INTEGER DEFAULT 0,
     UNIQUE(asset, trade_date)
 );
-
 CREATE INDEX IF NOT EXISTS idx_daily_counts ON daily_trade_counts(asset, trade_date);
-
 CREATE TABLE IF NOT EXISTS bot_state (
     id SERIAL PRIMARY KEY,
     key VARCHAR(50) UNIQUE NOT NULL,
     value TEXT,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-
 INSERT INTO bot_state (key, value) VALUES ('last_analyzed_XAUUSD', '')
 ON CONFLICT (key) DO NOTHING;
 INSERT INTO bot_state (key, value) VALUES ('last_analyzed_US100', '')
