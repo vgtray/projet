@@ -126,27 +126,12 @@ class LLMClient:
             "- Stats de performances passées pour patterns similaires (auto-calibration)\n"
             "\n"
             "## FORMAT DE RÉPONSE OBLIGATOIRE\n"
-            "Réponds UNIQUEMENT en JSON valide, rien d'autre :\n"
+            "Réponds UNIQUEMENT en JSON compact, rien d'autre :\n"
+            '{"a":"XAUUSD","d":"l|s|n","s":"r|c|u|n","c":0,"e":null,"sl":null,"tp":null,"rr":null,"cf":[],"sw":"none","ns":"n","ss":"n","v":false,"r":"x"}\n'
             "\n"
-            "{\n"
-            '  "asset": "XAUUSD | US100",\n'
-            '  "direction": "long | short | none",\n'
-            '  "scenario": "reversal | continuation | unclear | none",\n'
-            '  "confidence": 0-100,\n'
-            '  "entry_price": float ou null,\n'
-            '  "sl_price": float ou null,\n'
-            '  "tp_price": float ou null,\n'
-            '  "rr_ratio": float ou null,\n'
-            '  "confluences_used": ["FVG", "OB", "sweep", ...],\n'
-            '  "sweep_level": "asia_high | asia_low | london_high | london_low | prev_high | prev_low | none",\n'
-            '  "news_sentiment": "bullish | bearish | neutral",\n'
-            '  "social_sentiment": "bullish | bearish | neutral",\n'
-            '  "trade_valid": true | false,\n'
-            '  "reason": "explication courte en français"\n'
-            "}\n"
-            "\n"
-            "Si trade_valid est false → entry_price, sl_price, tp_price, rr_ratio sont null.\n"
-            "Ne jamais halluciner des niveaux ou des confluences non présents dans les données reçues."
+            "Clés: a=asset, d=direction(l/s/n), s=scenario(r/c/u/n), c=confidence%, e=entry, sl=stoploss, tp=takeprofit, rr=RR, cf=confluences, sw=sweep, ns=news, ss=social, v=valid, r=reason(court).\n"
+            "Si v=false → e,sl,tp,rr=null.\n"
+            "Ne jamais halluciner."
         )
 
     def build_analysis_prompt(self, data: dict) -> str:
@@ -382,6 +367,19 @@ class LLMClient:
                     text = brace_match.group(0)
 
             result = json.loads(text)
+
+            # Mapping clés compactes → clés complètes
+            KEY_MAP = {
+                "a": "asset", "d": "direction", "s": "scenario", "c": "confidence",
+                "e": "entry_price", "sl": "sl_price", "tp": "tp_price", "rr": "rr_ratio",
+                "cf": "confluences_used", "sw": "sweep_level", "ns": "news_sentiment",
+                "ss": "social_sentiment", "v": "trade_valid", "r": "reason",
+            }
+            mapped = {}
+            for short_key, full_key in KEY_MAP.items():
+                if short_key in result:
+                    mapped[full_key] = result[short_key]
+            result = mapped
 
             # Validation des champs obligatoires
             missing = [f for f in REQUIRED_FIELDS if f not in result]
