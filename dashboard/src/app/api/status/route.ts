@@ -15,7 +15,7 @@ export async function GET() {
     }
 
     const now = Date.now();
-    const TWO_MIN = 2 * 60 * 1000;
+    const TWO_MIN = 8 * 60 * 1000;
 
     const lastXAU = state['last_analyzed_XAUUSD']?.value;
     const lastUS = state['last_analyzed_US100']?.value;

@@ -22,7 +22,7 @@ const defaultState: BotState = {
 function isRecentlyActive(lastAnalyzed: string | null): boolean {
   if (!lastAnalyzed) return false;
   const diff = Date.now() - new Date(lastAnalyzed).getTime();
-  return diff < 2 * 60 * 1000; // 2 minutes
+  return diff < 8 * 60 * 1000; // 8 minutes (> 5 min between M5 candles)
 }
 
 export default function BotStatus() {
