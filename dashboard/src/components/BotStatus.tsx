@@ -57,8 +57,7 @@ export default function BotStatus() {
         body: JSON.stringify({ action }),
       });
       if (res.ok) {
-        const resStatus = await fetch('/api/status');
-        if (resStatus.ok) setState(await resStatus.json());
+        setState(prev => ({ ...prev, paused: action === 'pause' }));
       }
     } catch { /* silently fail */ }
     setToggling(false);
