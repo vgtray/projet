@@ -375,10 +375,19 @@ class LLMClient:
                 "cf": "confluences_used", "sw": "sweep_level", "ns": "news_sentiment",
                 "ss": "social_sentiment", "v": "trade_valid", "r": "reason",
             }
+            VAL_MAP = {
+                "direction":        {"l": "long", "s": "short", "n": "none"},
+                "scenario":         {"r": "reversal", "c": "continuation", "u": "unclear", "n": "none"},
+                "news_sentiment":   {"b": "bullish", "be": "bearish", "n": "neutral"},
+                "social_sentiment": {"b": "bullish", "be": "bearish", "n": "neutral"},
+            }
             mapped = {}
             for short_key, full_key in KEY_MAP.items():
                 if short_key in result:
-                    mapped[full_key] = result[short_key]
+                    val = result[short_key]
+                    if full_key in VAL_MAP and isinstance(val, str):
+                        val = VAL_MAP[full_key].get(val, val)
+                    mapped[full_key] = val
             result = mapped
 
             # Validation des champs obligatoires
