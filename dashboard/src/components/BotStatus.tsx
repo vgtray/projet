@@ -6,17 +6,17 @@ import { timeAgo } from '@/lib/utils';
 import { Play, Pause, Bot } from 'lucide-react';
 
 interface BotState {
-  active: boolean;
-  paused: boolean;
-  last_analyzed_xauusd: string | null;
-  last_analyzed_us100: string | null;
+  bot_active: boolean;
+  bot_paused: boolean;
+  last_analyzed_XAUUSD: string | null;
+  last_analyzed_US100: string | null;
 }
 
 const defaultState: BotState = {
-  active: false,
-  paused: false,
-  last_analyzed_xauusd: null,
-  last_analyzed_us100: null,
+  bot_active: false,
+  bot_paused: false,
+  last_analyzed_XAUUSD: null,
+  last_analyzed_US100: null,
 };
 
 function isRecentlyActive(lastAnalyzed: string | null): boolean {
@@ -30,8 +30,8 @@ export default function BotStatus() {
   const [toggling, setToggling] = useState(false);
 
   const isActive =
-    isRecentlyActive(state.last_analyzed_xauusd) ||
-    isRecentlyActive(state.last_analyzed_us100);
+    isRecentlyActive(state.last_analyzed_XAUUSD) ||
+    isRecentlyActive(state.last_analyzed_US100);
 
   useEffect(() => {
     async function fetchStatus() {
@@ -50,14 +50,14 @@ export default function BotStatus() {
     if (toggling) return;
     setToggling(true);
     try {
-      const action = state.paused ? 'resume' : 'pause';
+      const action = state.bot_paused ? 'resume' : 'pause';
       const res = await fetch('/api/bot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
       });
       if (res.ok) {
-        setState(prev => ({ ...prev, paused: action === 'pause' }));
+        setState(prev => ({ ...prev, bot_paused: action === 'pause' }));
       }
     } catch { /* silently fail */ }
     setToggling(false);
@@ -71,31 +71,31 @@ export default function BotStatus() {
           <span
             className={cn(
               'h-2.5 w-2.5 rounded-full',
-              isActive && !state.paused ? 'bg-profit animate-pulse-dot' : 'bg-loss'
+              isActive && !state.bot_paused ? 'bg-profit animate-pulse-dot' : 'bg-loss'
             )}
           />
-          {isActive && !state.paused && (
+          {isActive && !state.bot_paused && (
             <span className="absolute h-2.5 w-2.5 animate-ping rounded-full bg-profit/40" />
           )}
         </div>
         <span
           className={cn(
             'font-display text-sm font-semibold',
-            isActive && !state.paused ? 'text-profit' : 'text-loss'
+            isActive && !state.bot_paused ? 'text-profit' : 'text-loss'
           )}
         >
-          {state.paused ? 'Pause' : isActive ? 'Bot actif' : 'Bot inactif'}
+          {state.bot_paused ? 'Pause' : isActive ? 'Bot actif' : 'Bot inactif'}
         </span>
       </div>
 
       {/* Last analyzed */}
       <div className="hidden items-center gap-3 text-xs text-text-muted md:flex">
         <span>
-          XAU: {timeAgo(state.last_analyzed_xauusd)}
+          XAU: {timeAgo(state.last_analyzed_XAUUSD)}
         </span>
         <span className="text-border-bright">|</span>
         <span>
-          US100: {timeAgo(state.last_analyzed_us100)}
+          US100: {timeAgo(state.last_analyzed_US100)}
         </span>
       </div>
 
@@ -105,12 +105,12 @@ export default function BotStatus() {
         disabled={toggling}
         className={cn(
           'flex items-center gap-1.5 rounded-md border px-3 py-1.5 font-display text-xs font-medium transition-colors disabled:opacity-50',
-          state.paused
+          state.bot_paused
             ? 'border-profit/30 bg-profit-dim/20 text-profit hover:bg-profit-dim/40'
             : 'border-warning/30 bg-warning-dim/20 text-warning hover:bg-warning-dim/40'
         )}
       >
-        {state.paused ? (
+        {state.bot_paused ? (
           <>
             <Play className="h-3 w-3" />
             Resume
