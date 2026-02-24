@@ -272,10 +272,10 @@ class LLMClient:
         result = self._parse_response(response_text, llm_used)
         result["asset"] = result.get("asset") or data.get("asset")
 
-        # Règle fallback : si Groq et confidence <= 85 → invalide
-        if llm_used == "groq" and result.get("confidence", 0) <= 85:
+        # Règle fallback : si Groq et confidence < 75 → invalide
+        if llm_used == "groq" and result.get("confidence", 0) < 75:
             logger.warning(
-                "Fallback Groq avec confidence %d <= 85 — trade invalidé",
+                "Fallback Groq avec confidence %d < 75 — trade invalidé",
                 result.get("confidence", 0),
             )
             result["trade_valid"] = False
