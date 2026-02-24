@@ -1,11 +1,13 @@
-"""Module sentiment — NewsAPI + Reddit.
+"""Module sentiment — NewsAPI + Reddit + Twitter/X (twscrape).
 
-Analyse le sentiment marché via les titres de news et les posts Reddit.
+Analyse le sentiment marché via les titres de news, posts Reddit et tweets.
 Dégradation gracieuse : si une source échoue → retourne "neutral".
 Ref: SPEC.md sections 10, 16.
 """
 
+import asyncio
 import logging
+import os
 from typing import Optional
 
 import requests
@@ -32,6 +34,11 @@ ASSET_NEWS_QUERIES = {
 ASSET_SUBREDDITS = {
     "XAUUSD": ["Forex", "Gold"],
     "US100": ["investing", "stocks"],
+}
+
+ASSET_TWITTER_QUERIES = {
+    "XAUUSD": "gold XAUUSD OR #gold OR #XAUUSD OR #xauusd lang:en",
+    "US100": "nasdaq US100 OR #nasdaq OR #NAS100 OR #US100 lang:en",
 }
 
 
@@ -206,15 +213,113 @@ class RedditSentiment:
             return "neutral"
 
 
+class TwitterSentiment:
+    """Analyse le sentiment via Twitter/X (twscrape, sans API officielle)."""
+
+    # Fichier de persistance des comptes twscrape (dans /tmp pour Docker)
+    _DB_PATH = "/tmp/twscrape_accounts.db"
+
+    def __init__(self):
+        self._username = Config.TWITTER_USERNAME
+        self._password = Config.TWITTER_PASSWORD
+        self._email = Config.TWITTER_EMAIL
+        self._enabled = False
+        self._api = None
+
+        if not self._username or not self._password:
+            logger.info("TWITTER_USERNAME/PASSWORD absents — module Twitter désactivé")
+            return
+
+        try:
+            import twscrape  # noqa: F401
+            self._enabled = True
+            logger.info("Module Twitter (twscrape) activé")
+        except ImportError:
+            logger.warning("twscrape non installé — module Twitter désactivé")
+
+    async def _get_api(self):
+        """Initialise et retourne l'API twscrape (lazy, avec pool de comptes)."""
+        if self._api is not None:
+            return self._api
+        from twscrape import API
+        api = API(self._DB_PATH)
+        # Ajouter le compte seulement s'il n'est pas déjà enregistré
+        try:
+            await api.pool.add_account(
+                username=self._username,
+                password=self._password,
+                email=self._email,
+                email_password="",  # pas nécessaire si pas de 2FA email
+            )
+            await api.pool.login_all()
+        except Exception as e:
+            logger.warning("twscrape login : %s (compte peut-être déjà loggé)", e)
+        self._api = api
+        return api
+
+    async def _fetch_sentiment_async(self, asset: str) -> str:
+        """Fetch et analyse les tweets pour un asset (async)."""
+        query = ASSET_TWITTER_QUERIES.get(asset)
+        if not query:
+            return "neutral"
+
+        api = await self._get_api()
+        total_bullish = 0
+        total_bearish = 0
+        count = 0
+
+        try:
+            async for tweet in api.search(query, limit=30):
+                text = tweet.rawContent or ""
+                b, br = _count_sentiment(text)
+                total_bullish += b
+                total_bearish += br
+                count += 1
+        except Exception as e:
+            logger.error("Erreur twscrape search pour %s : %s", asset, e)
+            return "neutral"
+
+        if count == 0:
+            logger.info("Aucun tweet trouvé pour %s — neutral", asset)
+            return "neutral"
+
+        sentiment = _resolve_sentiment(total_bullish, total_bearish)
+        logger.info(
+            "Twitter sentiment %s : %s (bullish=%d, bearish=%d, tweets=%d)",
+            asset, sentiment, total_bullish, total_bearish, count,
+        )
+        return sentiment
+
+    def get_twitter_sentiment(self, asset: str) -> str:
+        """Récupère le sentiment Twitter pour un asset (interface synchrone).
+
+        Args:
+            asset: "XAUUSD" ou "US100".
+
+        Returns:
+            "bullish", "bearish" ou "neutral".
+        """
+        if not self._enabled:
+            return "neutral"
+        try:
+            return asyncio.run(self._fetch_sentiment_async(asset))
+        except Exception as e:
+            logger.error("Erreur Twitter sentiment %s : %s — fallback neutral", asset, e)
+            return "neutral"
+
+
 class SentimentAnalyzer:
     """Façade combinant toutes les sources de sentiment."""
 
     def __init__(self):
         self._news = NewsSentiment()
         self._reddit = RedditSentiment()
+        self._twitter = TwitterSentiment()
 
     def get_all_sentiment(self, asset: str) -> dict:
         """Récupère le sentiment de toutes les sources pour un asset.
+
+        Combine Reddit + Twitter en un seul score social.
 
         Args:
             asset: "XAUUSD" ou "US100".
@@ -223,11 +328,23 @@ class SentimentAnalyzer:
             {"news_sentiment": str, "social_sentiment": str}
         """
         news = self._news.get_news_sentiment(asset)
-        social = self._reddit.get_reddit_sentiment(asset)
+        reddit = self._reddit.get_reddit_sentiment(asset)
+        twitter = self._twitter.get_twitter_sentiment(asset)
+
+        # Combiner Reddit + Twitter : majorité l'emporte, sinon neutral
+        social_scores = {"bullish": 0, "bearish": 0, "neutral": 0}
+        social_scores[reddit] += 1
+        social_scores[twitter] += 1
+        if social_scores["bullish"] > social_scores["bearish"]:
+            social = "bullish"
+        elif social_scores["bearish"] > social_scores["bullish"]:
+            social = "bearish"
+        else:
+            social = "neutral"
 
         logger.info(
-            "Sentiment global %s — news: %s, social: %s",
-            asset, news, social,
+            "Sentiment global %s — news: %s, reddit: %s, twitter: %s → social: %s",
+            asset, news, reddit, twitter, social,
         )
 
         return {

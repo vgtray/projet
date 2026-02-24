@@ -65,6 +65,11 @@ class Config:
     REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET", "")
     REDDIT_USER_AGENT = os.getenv("REDDIT_USER_AGENT", "trade_bot/1.0")
 
+    # --- Twitter/X (twscrape) ---
+    TWITTER_USERNAME = os.getenv("TWITTER_USERNAME", "")
+    TWITTER_PASSWORD = os.getenv("TWITTER_PASSWORD", "")
+    TWITTER_EMAIL = os.getenv("TWITTER_EMAIL", "")
+
     # --- PostgreSQL ---
     DB_HOST = os.getenv("DB_HOST", "localhost")
     DB_PORT = int(os.getenv("DB_PORT", "5432"))
