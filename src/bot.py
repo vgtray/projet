@@ -402,6 +402,27 @@ class TradingBot:
             tp_price = float(trade["tp_price"]) if trade.get("tp_price") else None
             mt5_ticket = trade.get("mt5_ticket")
 
+            # Vérifier si demande de fermeture manuelle via dashboard
+            close_requested = self.db.get_bot_state(f"close_trade_{trade_id}")
+            if close_requested == "pending":
+                logger.info("Demande de fermeture manuelle pour trade %s", trade_id)
+                # Fermer la position sur MT5
+                lot_size = trade.get("lot_size")
+                close_result = None
+                if mt5_ticket and lot_size:
+                    close_result = self.mt5.close_trade(
+                        mt5_ticket, asset, direction, float(lot_size)
+                    )
+                if close_result and close_result.get("retcode") == 10009:
+                    self.db.update_trade(trade_id, {
+                        "status": "closed",
+                        "closed_reason": "manual",
+                        "exit_price": close_result.get("price", entry_price),
+                    })
+                    self.db.set_bot_state(f"close_trade_{trade_id}", "done")
+                    logger.info("Trade %s fermé manuellement", trade_id)
+                    continue
+
             # Matcher via le ticket MT5 stocké en DB
             position_found = False
             if mt5_ticket and mt5_ticket in mt5_tickets:
