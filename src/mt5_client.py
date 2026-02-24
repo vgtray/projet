@@ -591,7 +591,9 @@ class MT5Client:
             return []
 
         try:
-            deals = self._mt5.history_deals_get(from_date, to_date)
+            from_date_naive = from_date.replace(tzinfo=None) if from_date.tzinfo else from_date
+            to_date_naive = to_date.replace(tzinfo=None) if to_date.tzinfo else to_date
+            deals = self._mt5.history_deals_get(from_date_naive, to_date_naive)
             if deals is None:
                 return []
             return list(deals)
