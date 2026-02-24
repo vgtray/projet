@@ -166,7 +166,7 @@ class Database:
             WHERE asset = %s
               AND direction = %s
               AND sweep_level = %s
-              AND timestamp > NOW() - INTERVAL '%s minutes'
+              AND timestamp > NOW() - (%s * INTERVAL '1 minute')
         """
         try:
             with self.conn.cursor() as cur:

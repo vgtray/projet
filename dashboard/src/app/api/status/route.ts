@@ -15,14 +15,14 @@ export async function GET() {
     }
 
     const now = Date.now();
-    const TWO_MIN = 8 * 60 * 1000;
+    const ACTIVITY_WINDOW_MS = 8 * 60 * 1000;
 
     const lastXAU = state['last_analyzed_XAUUSD']?.value;
     const lastUS = state['last_analyzed_US100']?.value;
     const paused = state['bot_paused']?.value === 'true';
 
-    const xauActive = lastXAU ? (now - new Date(lastXAU).getTime()) < TWO_MIN : false;
-    const usActive = lastUS ? (now - new Date(lastUS).getTime()) < TWO_MIN : false;
+    const xauActive = lastXAU ? (now - new Date(lastXAU).getTime()) < ACTIVITY_WINDOW_MS : false;
+    const usActive = lastUS ? (now - new Date(lastUS).getTime()) < ACTIVITY_WINDOW_MS : false;
     const botActive = !paused && (xauActive || usActive);
 
     return NextResponse.json({

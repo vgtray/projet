@@ -15,6 +15,7 @@ interface Trade {
   lot_size: number | string | null;
   pnl: number | string | null;
   status: string;
+  closed_reason: string | null;
   entry_time: string;
 }
 
@@ -23,23 +24,19 @@ interface TradeRowProps {
   onClose?: () => void;
 }
 
-const statusVariant = (s: string) => {
-  switch (s) {
-    case 'open': return 'info';
-    case 'tp': return 'success';
-    case 'sl': return 'danger';
-    default: return 'neutral';
-  } 
+const statusVariant = (trade: Trade) => {
+  if (trade.status === 'open') return 'info';
+  if (trade.closed_reason === 'tp') return 'success';
+  if (trade.closed_reason === 'sl') return 'danger';
+  return 'neutral';
 };
 
-const statusLabel = (s: string) => {
-  switch (s) {
-    case 'open': return 'OPEN';
-    case 'tp': return 'TP HIT';
-    case 'sl': return 'SL HIT';
-    case 'closed': return 'CLOSED';
-    default: return s.toUpperCase();
-  }
+const statusLabel = (trade: Trade) => {
+  if (trade.status === 'open') return 'OPEN';
+  if (trade.closed_reason === 'tp') return 'TP HIT';
+  if (trade.closed_reason === 'sl') return 'SL HIT';
+  if (trade.status === 'closed') return 'CLOSED';
+  return trade.status.toUpperCase();
 };
 
 export default function TradeRow({ trade, onClose }: TradeRowProps) {
@@ -84,8 +81,8 @@ export default function TradeRow({ trade, onClose }: TradeRowProps) {
         {pnl.text}
       </td>
       <td className="px-3 py-3">
-        <Badge variant={statusVariant(trade.status)}>
-          {statusLabel(trade.status)}
+        <Badge variant={statusVariant(trade)}>
+          {statusLabel(trade)}
         </Badge>
       </td>
       <td className="px-3 py-3 text-sm text-text-secondary">

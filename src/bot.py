@@ -13,6 +13,7 @@ import signal
 import threading
 import time
 from datetime import datetime, date, timedelta
+from typing import Optional
 
 import pytz
 
@@ -49,11 +50,12 @@ class TradingBot:
 
     def start(self):
         """Démarre le bot : logging, connexions, boucles parallèles, shutdown."""
+        setup_logging()  # console + file uniquement (DB pas encore connectée)
         logger.info("=== Démarrage du bot SMC/ICT ===")
 
         self.db.connect()
         self.db.init_schema()
-        setup_logging(db=self.db)
+        setup_logging(db=self.db)  # re-setup en ajoutant le handler DB
 
         if not self.mt5.connect():
             logger.critical("Impossible de connecter MT5 — arrêt du bot")
@@ -179,7 +181,7 @@ class TradingBot:
         candles_extended = self.mt5.get_candles(asset, "M5", 500)
         if candles_extended is None or candles_extended.empty:
             candles_extended = candles
-        key_levels = self.key_levels.calculate_all(candles_extended, now_paris)
+        key_levels = self.key_levels.calculate_all(candles_extended, now_paris, asset)
 
         # 8. Confluences
         confluences = self.confluences.detect_all(candles)
@@ -418,7 +420,7 @@ class TradingBot:
 
             # 3. Position fermée — récupérer les détails depuis l'historique MT5
             try:
-                exit_price, pnl = self._get_closed_trade_details(asset, entry_price, direction)
+                exit_price, pnl = self._get_closed_trade_details(asset, entry_price, direction, mt5_ticket)
             except Exception as e:
                 logger.error("Erreur récupération détails trade fermé id=%s : %s", trade_id, e)
                 continue
@@ -476,7 +478,8 @@ class TradingBot:
             )
 
     def _get_closed_trade_details(
-        self, asset: str, entry_price: float, direction: str
+        self, asset: str, entry_price: float, direction: str,
+        mt5_ticket: Optional[int] = None
     ) -> tuple:
         """Récupère le prix de sortie et le PnL d'un trade fermé via l'historique MT5.
 
@@ -484,6 +487,7 @@ class TradingBot:
             asset: Symbole de l'asset.
             entry_price: Prix d'entrée du trade.
             direction: Direction du trade ("long" ou "short").
+            mt5_ticket: Ticket MT5 pour matching précis par position_id.
 
         Returns:
             Tuple (exit_price, pnl) ou (None, None) si non trouvé.
@@ -502,15 +506,16 @@ class TradingBot:
             for deal in reversed(deals):
                 if deal.magic != Config.BOT_MAGIC:
                     continue
-                # Chercher un deal de fermeture correspondant
-                # deal.entry : 0=in, 1=out, 2=inout
+                # Chercher un deal de fermeture (entry=1:out)
                 if deal.entry != 1:
                     continue
-                # Vérifier la correspondance par prix d'entrée approximatif
-                if abs(deal.price - entry_price) > 50:
-                    continue
-
-                return float(deal.price), float(deal.profit)
+                # Matcher par position_id (ticket MT5 stocké en DB)
+                if mt5_ticket and hasattr(deal, "position_id") and deal.position_id == mt5_ticket:
+                    return float(deal.price), float(deal.profit)
+                # Fallback : tolérance relative (0.5% du prix) si pas de ticket
+                tolerance = entry_price * 0.005
+                if abs(deal.price - entry_price) <= tolerance:
+                    return float(deal.price), float(deal.profit)
 
             return None, None
 

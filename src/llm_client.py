@@ -368,26 +368,55 @@ class LLMClient:
 
             result = json.loads(text)
 
-            # Mapping clés compactes → clés complètes
-            KEY_MAP = {
-                "a": "asset", "d": "direction", "s": "scenario", "c": "confidence",
-                "e": "entry_price", "sl": "sl_price", "tp": "tp_price", "rr": "rr_ratio",
-                "cf": "confluences_used", "sw": "sweep_level", "ns": "news_sentiment",
-                "ss": "social_sentiment", "v": "trade_valid", "r": "reason",
-            }
+            # Mapping valeurs (compact ou plein → valeur canonique)
             VAL_MAP = {
-                "direction":        {"l": "long", "s": "short", "n": "none"},
-                "scenario":         {"r": "reversal", "c": "continuation", "u": "unclear", "n": "none"},
-                "news_sentiment":   {"b": "bullish", "be": "bearish", "n": "neutral"},
-                "social_sentiment": {"b": "bullish", "be": "bearish", "n": "neutral"},
+                "direction": {
+                    "l": "long", "long": "long",
+                    "s": "short", "short": "short",
+                    "n": "none", "none": "none",
+                },
+                "scenario": {
+                    "r": "reversal", "reversal": "reversal",
+                    "c": "continuation", "continuation": "continuation",
+                    "u": "unclear", "unclear": "unclear",
+                    "n": "none", "none": "none",
+                },
+                "news_sentiment": {
+                    "b": "bullish", "bullish": "bullish",
+                    "be": "bearish", "bear": "bearish", "bearish": "bearish",
+                    "n": "neutral", "neutral": "neutral",
+                },
+                "social_sentiment": {
+                    "b": "bullish", "bullish": "bullish",
+                    "be": "bearish", "bear": "bearish", "bearish": "bearish",
+                    "n": "neutral", "neutral": "neutral",
+                },
             }
-            mapped = {}
-            for short_key, full_key in KEY_MAP.items():
-                if short_key in result:
-                    val = result[short_key]
-                    if full_key in VAL_MAP and isinstance(val, str):
-                        val = VAL_MAP[full_key].get(val, val)
-                    mapped[full_key] = val
+
+            # Détecter si le LLM a répondu avec les clés complètes ou compactes
+            FULL_KEYS = {"asset", "direction", "scenario", "confidence", "entry_price",
+                         "sl_price", "tp_price", "rr_ratio", "confluences_used", "sweep_level",
+                         "news_sentiment", "social_sentiment", "trade_valid", "reason"}
+            if FULL_KEYS & result.keys():
+                # Réponse avec clés complètes — appliquer seulement VAL_MAP sur les valeurs
+                mapped = dict(result)
+            else:
+                # Réponse compacte — mapper clés + valeurs
+                KEY_MAP = {
+                    "a": "asset", "d": "direction", "s": "scenario", "c": "confidence",
+                    "e": "entry_price", "sl": "sl_price", "tp": "tp_price", "rr": "rr_ratio",
+                    "cf": "confluences_used", "sw": "sweep_level", "ns": "news_sentiment",
+                    "ss": "social_sentiment", "v": "trade_valid", "r": "reason",
+                }
+                mapped = {}
+                for short_key, full_key in KEY_MAP.items():
+                    if short_key in result:
+                        mapped[full_key] = result[short_key]
+
+            # Normaliser les valeurs via VAL_MAP
+            for full_key, vmap in VAL_MAP.items():
+                if full_key in mapped and isinstance(mapped[full_key], str):
+                    mapped[full_key] = vmap.get(mapped[full_key].lower(), mapped[full_key])
             result = mapped
 
             # Validation des champs obligatoires

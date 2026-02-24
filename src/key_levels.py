@@ -25,17 +25,19 @@ class KeyLevels:
     """Calcule et cache les niveaux clés fixes de la journée."""
 
     def __init__(self):
-        self._cache: dict = {}
-        self._cache_date: Optional[date_type] = None
+        self._cache: dict[str, dict] = {}           # asset → levels dict
+        self._cache_date: dict[str, date_type] = {} # asset → date
 
-    def calculate_all(self, candles_df: pd.DataFrame, current_time_paris: datetime) -> dict:
+    def calculate_all(self, candles_df: pd.DataFrame, current_time_paris: datetime,
+                      asset: str = "") -> dict:
         """Calcule tous les niveaux clés pour la journée courante.
 
-        Les niveaux sont cachés : un seul calcul par jour.
+        Les niveaux sont cachés par asset : un seul calcul par asset par jour.
 
         Args:
             candles_df: DataFrame OHLCV avec colonne 'time' aware Europe/Paris.
             current_time_paris: Heure actuelle en Europe/Paris.
+            asset: Nom de l'asset (XAUUSD, US100) pour isoler le cache.
 
         Returns:
             Dictionnaire avec asia_high, asia_low, london_high, london_low,
@@ -43,11 +45,11 @@ class KeyLevels:
         """
         today = current_time_paris.date()
 
-        if self._cache_date == today and self._cache:
-            logger.debug("Niveaux clés servis depuis le cache pour %s", today)
-            return self._cache
+        if self._cache_date.get(asset) == today and self._cache.get(asset):
+            logger.debug("Niveaux clés servis depuis le cache pour %s %s", asset, today)
+            return self._cache[asset]
 
-        logger.info("Calcul des niveaux clés pour %s", today)
+        logger.info("Calcul des niveaux clés pour %s %s", asset, today)
 
         asia = self._get_asia_range(candles_df, today)
         london = self._get_london_range(candles_df, today)
@@ -57,7 +59,7 @@ class KeyLevels:
         london_high, london_low = self._extract_high_low(london, "London")
         prev_high, prev_low = self._extract_high_low(prev_day, "Previous Day")
 
-        self._cache = {
+        levels = {
             "asia_high": asia_high,
             "asia_low": asia_low,
             "london_high": london_high,
@@ -65,14 +67,15 @@ class KeyLevels:
             "prev_day_high": prev_high,
             "prev_day_low": prev_low,
         }
-        self._cache_date = today
+        self._cache[asset] = levels
+        self._cache_date[asset] = today
 
         logger.info(
-            "Niveaux clés calculés — Asia H/L: %s/%s | London H/L: %s/%s | PrevDay H/L: %s/%s",
-            asia_high, asia_low, london_high, london_low, prev_high, prev_low,
+            "Niveaux clés calculés [%s] — Asia H/L: %s/%s | London H/L: %s/%s | PrevDay H/L: %s/%s",
+            asset, asia_high, asia_low, london_high, london_low, prev_high, prev_low,
         )
 
-        return self._cache
+        return levels
 
     def _get_asia_range(self, candles_df: pd.DataFrame, date) -> pd.DataFrame:
         """Filtre les bougies de la session Asia (00:00-09:00 Paris).
@@ -157,14 +160,14 @@ class KeyLevels:
         for level_name, level_value in high_levels.items():
             if level_value is None:
                 continue
-            if recent_high > level_value >= candles_df["high"].iloc[0] if len(candles_df) > 0 else False:
+            if len(candles_df) > 0 and recent_high > level_value and level_value >= candles_df["high"].iloc[0]:
                 logger.info("Sweep détecté au-dessus de %s (%.5f)", level_name, level_value)
                 return {"swept": True, "level": level_name, "direction": "above"}
 
         for level_name, level_value in low_levels.items():
             if level_value is None:
                 continue
-            if recent_low < level_value <= candles_df["low"].iloc[0] if len(candles_df) > 0 else False:
+            if len(candles_df) > 0 and recent_low < level_value and level_value <= candles_df["low"].iloc[0]:
                 logger.info("Sweep détecté en dessous de %s (%.5f)", level_name, level_value)
                 return {"swept": True, "level": level_name, "direction": "below"}
 
