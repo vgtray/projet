@@ -72,9 +72,12 @@ export default function SignalRow({ signal }: SignalRowProps) {
       </td>
       <td className="px-3 py-3">
         <div className="flex flex-wrap gap-1">
-          {signal.confluences_used?.map((c) => (
-            <Badge key={c} variant="info">{c}</Badge>
-          ))}
+          {Array.isArray(signal.confluences_used) && signal.confluences_used.length > 0
+            ? signal.confluences_used.map((c) => (
+                <Badge key={c} variant="info">{c.toUpperCase()}</Badge>
+              ))
+            : <span className="font-mono text-xs text-text-muted">—</span>
+          }
         </div>
       </td>
       <td className="px-3 py-3 font-mono text-xs text-text-secondary">

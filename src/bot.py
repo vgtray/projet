@@ -272,6 +272,18 @@ class TradingBot:
         )
 
         # 16. Sauvegarder le signal en DB
+        # Normaliser confluences_used en liste de strings simples
+        raw_confluences = signal_result.get("confluences_used") or []
+        if isinstance(raw_confluences, list):
+            confluences_normalized = []
+            for c in raw_confluences:
+                if isinstance(c, dict):
+                    confluences_normalized.append(c.get("type", str(c)))
+                else:
+                    confluences_normalized.append(str(c))
+        else:
+            confluences_normalized = []
+
         signal_record = {
             "asset": asset,
             "timestamp": now_paris,
@@ -282,7 +294,7 @@ class TradingBot:
             "sl_price": signal_result.get("sl_price"),
             "tp_price": signal_result.get("tp_price"),
             "rr_ratio": signal_result.get("rr_ratio"),
-            "confluences_used": signal_result.get("confluences_used", []),
+            "confluences_used": confluences_normalized,
             "sweep_level": signal_result.get("sweep_level"),
             "news_sentiment": signal_result.get("news_sentiment"),
             "social_sentiment": signal_result.get("social_sentiment"),
