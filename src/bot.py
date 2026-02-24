@@ -401,13 +401,12 @@ class TradingBot:
             sl_price = float(trade["sl_price"]) if trade.get("sl_price") else None
             tp_price = float(trade["tp_price"]) if trade.get("tp_price") else None
             mt5_ticket = trade.get("mt5_ticket")
+            lot_size = trade.get("lot_size")
 
             # Vérifier si demande de fermeture manuelle via dashboard
             close_requested = self.db.get_bot_state(f"close_trade_{trade_id}")
             if close_requested == "pending":
                 logger.info("Demande de fermeture manuelle pour trade %s", trade_id)
-                # Fermer la position sur MT5
-                lot_size = trade.get("lot_size")
                 close_result = None
                 if mt5_ticket and lot_size:
                     close_result = self.mt5.close_trade(
@@ -449,8 +448,15 @@ class TradingBot:
                 # Pas trouvé dans l'historique — peut-être encore en cours
                 continue
 
+            # Calculer pnl si MT5 ne l'a pas fourni
+            if pnl is None and exit_price and entry_price and direction and lot_size:
+                if direction == "long":
+                    pnl = (exit_price - entry_price) * float(lot_size) * 100  # XAUUSD: 100 oz per lot
+                else:  # short
+                    pnl = (entry_price - exit_price) * float(lot_size) * 100
+
             # 4. Déterminer la raison de fermeture
-            closed_reason = "tp" if pnl > 0 else "sl"
+            closed_reason = "tp" if pnl and pnl > 0 else "sl"
 
             # 5. Mettre à jour le trade en DB
             now_paris = datetime.now(PARIS_TZ)
