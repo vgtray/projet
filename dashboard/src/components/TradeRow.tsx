@@ -15,7 +15,7 @@ interface Trade {
   lot_size: number | string | null;
   pnl: number | string | null;
   status: string;
-  closed_reason: string | null;
+  closed_reason?: string | null;
   entry_time: string;
 }
 
