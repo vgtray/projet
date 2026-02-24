@@ -74,12 +74,16 @@ class TradingBot:
         monitoring_thread = threading.Thread(
             target=self._monitoring_loop, name="monitoring", daemon=True
         )
-        self._threads = [analysis_thread, monitoring_thread]
+        close_thread = threading.Thread(
+            target=self._close_requests_loop, name="close_requests", daemon=True
+        )
+        self._threads = [analysis_thread, monitoring_thread, close_thread]
 
         analysis_thread.start()
         monitoring_thread.start()
+        close_thread.start()
 
-        logger.info("Boucles démarrées — analyse (10s) + monitoring (30s)")
+        logger.info("Boucles démarrées — analyse (10s) + monitoring (30s) + fermetures (2s)")
         logger.info("Assets : %s | Session NY : 14h30-21h00 Paris", Config.ASSETS)
 
         try:
@@ -381,6 +385,54 @@ class TradingBot:
                 logger.error("Erreur monitoring trades : %s", e, exc_info=True)
             time.sleep(30)
 
+    def _close_requests_loop(self):
+        """Boucle dédiée aux demandes de fermeture manuelle depuis le dashboard (toutes les 2s)."""
+        while self.running:
+            try:
+                db_trades = self.db.get_open_trades()
+                for trade in db_trades:
+                    trade_id = trade["id"]
+                    close_requested = self.db.get_bot_state(f"close_trade_{trade_id}")
+                    if close_requested != "pending":
+                        continue
+
+                    asset = trade["asset"]
+                    direction = trade["direction"]
+                    entry_price = float(trade["entry_price"])
+                    mt5_ticket = trade.get("mt5_ticket")
+                    lot_size = trade.get("lot_size")
+
+                    logger.info("Demande de fermeture manuelle détectée pour trade %s", trade_id)
+                    close_result = None
+                    if mt5_ticket and lot_size:
+                        close_result = self.mt5.close_trade(
+                            mt5_ticket, asset, direction, float(lot_size)
+                        )
+                    if close_result and close_result.get("retcode") == 10009:
+                        manual_exit = float(close_result.get("price", entry_price))
+                        contract_size = 100 if asset == "XAUUSD" else 1
+                        if direction == "long":
+                            manual_pnl = (manual_exit - entry_price) * float(lot_size or 0) * contract_size
+                        else:
+                            manual_pnl = (entry_price - manual_exit) * float(lot_size or 0) * contract_size
+                        self.db.update_trade(trade_id, {
+                            "status": "closed",
+                            "closed_reason": "manual",
+                            "exit_price": manual_exit,
+                            "exit_time": datetime.now(PARIS_TZ),
+                            "pnl": round(manual_pnl, 2),
+                        })
+                        self.db.set_bot_state(f"close_trade_{trade_id}", "done")
+                        self.db.increment_daily_trade_count(asset, datetime.now(PARIS_TZ).date())
+                        logger.info("Trade %s fermé manuellement — exit=%.5f PnL=%.2f",
+                                    trade_id, manual_exit, manual_pnl)
+                    else:
+                        logger.error("Fermeture manuelle échouée pour trade %s — result: %s",
+                                     trade_id, close_result)
+            except Exception as e:
+                logger.error("Erreur boucle close_requests : %s", e, exc_info=True)
+            time.sleep(2)
+
     def _check_open_trades(self):
         """Vérifie si des trades ouverts ont été fermés par TP/SL."""
         # 1. Positions ouvertes MT5
@@ -403,24 +455,11 @@ class TradingBot:
             mt5_ticket = trade.get("mt5_ticket")
             lot_size = trade.get("lot_size")
 
-            # Vérifier si demande de fermeture manuelle via dashboard
+            # Les fermetures manuelles dashboard sont gérées par _close_requests_loop
+            # Si le trade a déjà une demande pending ou done, le sauter ici
             close_requested = self.db.get_bot_state(f"close_trade_{trade_id}")
-            if close_requested == "pending":
-                logger.info("Demande de fermeture manuelle pour trade %s", trade_id)
-                close_result = None
-                if mt5_ticket and lot_size:
-                    close_result = self.mt5.close_trade(
-                        mt5_ticket, asset, direction, float(lot_size)
-                    )
-                if close_result and close_result.get("retcode") == 10009:
-                    self.db.update_trade(trade_id, {
-                        "status": "closed",
-                        "closed_reason": "manual",
-                        "exit_price": close_result.get("price", entry_price),
-                    })
-                    self.db.set_bot_state(f"close_trade_{trade_id}", "done")
-                    logger.info("Trade %s fermé manuellement", trade_id)
-                    continue
+            if close_requested in ("pending", "done"):
+                continue
 
             # Matcher via le ticket MT5 stocké en DB
             position_found = False
@@ -439,31 +478,58 @@ class TradingBot:
 
             # 3. Position fermée — récupérer les détails depuis l'historique MT5
             try:
-                exit_price, pnl = self._get_closed_trade_details(asset, entry_price, direction, mt5_ticket)
+                entry_time_raw = trade.get("entry_time")
+                exit_price, pnl = self._get_closed_trade_details(
+                    asset, entry_price, direction, mt5_ticket, entry_time_raw
+                )
             except Exception as e:
                 logger.error("Erreur récupération détails trade fermé id=%s : %s", trade_id, e)
                 continue
 
+            deal_found_in_history = exit_price is not None
+
             if exit_price is None:
-                # Pas trouvé dans l'historique — peut-être encore en cours
-                continue
+                # Deal introuvable dans l'historique MT5 (fermeture manuelle depuis MT5,
+                # ou magic number différent, ou deal trop ancien).
+                # La position n'est plus dans MT5 → elle a été fermée. On estime l'exit_price.
+                current_price_data = self.mt5.get_current_price(asset)
+                if current_price_data:
+                    exit_price = current_price_data["bid"] if direction == "long" else current_price_data["ask"]
+                    logger.warning(
+                        "Deal MT5 introuvable pour trade id=%s — exit_price estimé à %.5f (prix actuel)",
+                        trade_id, exit_price
+                    )
+                    pnl = None  # Sera calculé ci-dessous
+                else:
+                    logger.error(
+                        "Impossible de récupérer le prix actuel pour trade id=%s — skip",
+                        trade_id
+                    )
+                    continue
 
             # Calculer pnl si MT5 ne l'a pas fourni
             if pnl is None and exit_price and entry_price and direction and lot_size:
+                # contract_size : XAUUSD=100oz/lot, US100=1/lot
+                contract_size = 100 if asset == "XAUUSD" else 1
                 if direction == "long":
-                    pnl = (exit_price - entry_price) * float(lot_size) * 100  # XAUUSD: 100 oz per lot
-                else:  # short
-                    pnl = (entry_price - exit_price) * float(lot_size) * 100
+                    pnl = (exit_price - entry_price) * float(lot_size) * contract_size
+                else:
+                    pnl = (entry_price - exit_price) * float(lot_size) * contract_size
 
             # 4. Déterminer la raison de fermeture
-            closed_reason = "tp" if pnl and pnl > 0 else "sl"
+            pnl_final = float(pnl) if pnl is not None else 0.0
+            if not deal_found_in_history:
+                # On ne sait pas si c'est TP/SL/manuel depuis MT5 — marquer "manual"
+                closed_reason = "manual"
+            else:
+                closed_reason = "tp" if pnl_final > 0 else "sl"
 
             # 5. Mettre à jour le trade en DB
             now_paris = datetime.now(PARIS_TZ)
             self.db.update_trade(trade_id, {
                 "exit_price": exit_price,
                 "exit_time": now_paris,
-                "pnl": pnl,
+                "pnl": pnl_final,
                 "status": "closed",
                 "closed_reason": closed_reason,
             })
@@ -490,22 +556,25 @@ class TradingBot:
                 except Exception as e:
                     logger.error("Erreur lecture scenario signal id=%s : %s", signal_id, e)
 
+            pnl_value = float(pnl) if pnl is not None else 0.0
             self.db.update_performance_stats(
                 pattern_type=pattern_type,
                 asset=asset,
-                won=pnl > 0,
+                won=pnl_value > 0,
                 rr=round(rr_ratio, 2),
-                pnl=round(pnl, 2),
+                pnl=round(pnl_value, 2),
             )
 
             logger.info(
                 "Trade fermé — id=%s %s %s | PnL: %.2f | Raison: %s | RR: %.2f",
-                trade_id, direction.upper(), asset, pnl, closed_reason, rr_ratio,
+                trade_id, direction.upper() if direction else "?", asset,
+                pnl_value, closed_reason, rr_ratio,
             )
 
     def _get_closed_trade_details(
         self, asset: str, entry_price: float, direction: str,
-        mt5_ticket: Optional[int] = None
+        mt5_ticket: Optional[int] = None,
+        entry_time: Optional[datetime] = None,
     ) -> tuple:
         """Récupère le prix de sortie et le PnL d'un trade fermé via l'historique MT5.
 
@@ -513,7 +582,8 @@ class TradingBot:
             asset: Symbole de l'asset.
             entry_price: Prix d'entrée du trade.
             direction: Direction du trade ("long" ou "short").
-            mt5_ticket: Ticket MT5 pour matching précis par position_id.
+            mt5_ticket: Ticket MT5 (order ticket) pour matching par position_id.
+            entry_time: Heure d'entrée du trade pour affiner la recherche.
 
         Returns:
             Tuple (exit_price, pnl) ou (None, None) si non trouvé.
@@ -523,28 +593,64 @@ class TradingBot:
 
         try:
             now = datetime.now(PARIS_TZ)
-            from_date = now - timedelta(days=1)
+            # Chercher depuis l'entrée du trade ou 7 jours max pour couvrir les anciens trades
+            if entry_time:
+                # Assurer que entry_time est timezone-aware
+                if entry_time.tzinfo is None:
+                    entry_time = PARIS_TZ.localize(entry_time)
+                from_date = entry_time - timedelta(minutes=5)  # petite marge
+            else:
+                from_date = now - timedelta(days=7)
 
             deals = self.mt5.get_history_deals(from_date, now)
             if not deals:
+                logger.warning("Aucun deal MT5 trouvé entre %s et %s", from_date, now)
                 return None, None
 
+            logger.debug("Recherche deal fermé parmi %d deals (ticket=%s, asset=%s)",
+                         len(deals), mt5_ticket, asset)
+
+            # Passe 1 : matching précis par position_id (= ticket de la position ouverte)
+            if mt5_ticket:
+                for deal in reversed(deals):
+                    # Filtrer par magic number
+                    deal_magic = getattr(deal, "magic", None)
+                    if deal_magic != Config.BOT_MAGIC:
+                        continue
+                    # entry : 0=in, 1=out, 2=reversal — vérifier les deux formes (int ou enum)
+                    deal_entry = getattr(deal, "entry", None)
+                    deal_entry_val = int(deal_entry) if deal_entry is not None else -1
+                    if deal_entry_val != 1:
+                        continue
+                    # position_id dans l'historique = ticket de la position (= order ticket à l'ouverture)
+                    deal_pos_id = getattr(deal, "position_id", None)
+                    if deal_pos_id is not None and int(deal_pos_id) == int(mt5_ticket):
+                        logger.info("Deal fermé trouvé par position_id=%s : price=%.5f profit=%.2f",
+                                    mt5_ticket, deal.price, deal.profit)
+                        return float(deal.price), float(deal.profit)
+
+            # Passe 2 : fallback par tolérance de prix (0.5% du prix d'entrée)
+            tolerance = entry_price * 0.005
             for deal in reversed(deals):
-                if deal.magic != Config.BOT_MAGIC:
+                deal_magic = getattr(deal, "magic", None)
+                if deal_magic != Config.BOT_MAGIC:
                     continue
-                # Chercher un deal de fermeture (entry=1:out)
-                if deal.entry != 1:
+                deal_entry = getattr(deal, "entry", None)
+                deal_entry_val = int(deal_entry) if deal_entry is not None else -1
+                if deal_entry_val != 1:
                     continue
-                # Matcher par position_id (ticket MT5 stocké en DB)
-                if mt5_ticket and hasattr(deal, "position_id") and deal.position_id == mt5_ticket:
-                    return float(deal.price), float(deal.profit)
-                # Fallback : tolérance relative (0.5% du prix) si pas de ticket
-                tolerance = entry_price * 0.005
-                if abs(deal.price - entry_price) <= tolerance:
+                if abs(float(deal.price) - entry_price) <= tolerance:
+                    logger.info("Deal fermé trouvé par tolérance prix (%.5f ≈ %.5f) : profit=%.2f",
+                                deal.price, entry_price, deal.profit)
                     return float(deal.price), float(deal.profit)
 
+            logger.warning(
+                "Aucun deal de fermeture trouvé pour ticket=%s asset=%s entry=%.5f "
+                "(magic=%s, %d deals analysés)",
+                mt5_ticket, asset, entry_price, Config.BOT_MAGIC, len(deals)
+            )
             return None, None
 
         except Exception as e:
-            logger.error("Erreur history_deals_get : %s", e)
+            logger.error("Erreur history_deals_get : %s", e, exc_info=True)
             return None, None

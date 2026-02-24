@@ -28,6 +28,7 @@ const statusVariant = (trade: Trade) => {
   if (trade.status === 'open') return 'info';
   if (trade.closed_reason === 'tp') return 'success';
   if (trade.closed_reason === 'sl') return 'danger';
+  if (trade.closed_reason === 'manual') return 'warning';
   return 'neutral';
 };
 
@@ -35,6 +36,7 @@ const statusLabel = (trade: Trade) => {
   if (trade.status === 'open') return 'OPEN';
   if (trade.closed_reason === 'tp') return 'TP HIT';
   if (trade.closed_reason === 'sl') return 'SL HIT';
+  if (trade.closed_reason === 'manual') return 'MANUAL';
   if (trade.status === 'closed') return 'CLOSED';
   return trade.status.toUpperCase();
 };
@@ -49,7 +51,27 @@ export default function TradeRow({ trade, onClose }: TradeRowProps) {
     setClosing(true);
     try {
       await fetch(`/api/trades/${trade.id}/close`, { method: 'POST' });
-      onClose?.();
+      // Poller toutes les 2s jusqu'à confirmation de fermeture par le bot (max 20s)
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts++;
+        try {
+          const res = await fetch('/api/trades?status=open');
+          if (res.ok) {
+            const data = await res.json();
+            const stillOpen = (data.trades ?? []).some((t: { id: number }) => t.id === trade.id);
+            if (!stillOpen || attempts >= 10) {
+              clearInterval(poll);
+              onClose?.();
+            }
+          }
+        } catch {
+          if (attempts >= 10) {
+            clearInterval(poll);
+            setClosing(false);
+          }
+        }
+      }, 2000);
     } catch {
       setClosing(false);
     }
