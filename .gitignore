@@ -4,7 +4,7 @@
 .env.local
 
 # Logs
-logs/
+/logs/
 *.log
 
 # Python
