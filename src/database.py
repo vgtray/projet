@@ -176,7 +176,6 @@ class Database:
         except Exception as e:
             logger.error("Erreur vérification doublon trade : %s", e)
             return False
-            return False
 
     def get_performance_stats(self, pattern_type: str, asset: str) -> Optional[dict]:
         """Retourne les stats de performance pour un pattern et un asset."""
