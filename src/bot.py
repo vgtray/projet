@@ -122,6 +122,15 @@ class TradingBot:
     def _analysis_loop(self):
         """Boucle d'analyse : vérifie chaque asset toutes les 10 secondes."""
         while self.running:
+            try:
+                paused = self.db.get_bot_state("bot_paused")
+                if paused == "true":
+                    logger.info("Bot en pause — analyse suspendue")
+                    time.sleep(10)
+                    continue
+            except Exception:
+                pass
+
             for asset in Config.ASSETS:
                 try:
                     self._analyze_asset(asset)
