@@ -17,12 +17,21 @@ from src.config import Config
 logger = logging.getLogger(__name__)
 
 REQUIRED_FIELDS = [
-    "asset", "direction", "scenario", "confidence",
-    "entry_price", "sl_price", "tp_price", "rr_ratio",
-    "confluences_used", "sweep_level",
-    "news_sentiment", "social_sentiment",
+    "direction", "scenario", "confidence",
     "trade_valid", "reason",
 ]
+
+OPTIONAL_FIELDS = {
+    "asset": None,
+    "entry_price": None,
+    "sl_price": None,
+    "tp_price": None,
+    "rr_ratio": None,
+    "confluences_used": [],
+    "sweep_level": "none",
+    "news_sentiment": "neutral",
+    "social_sentiment": "neutral",
+}
 
 INVALID_SIGNAL = {
     "asset": None,
@@ -411,16 +420,15 @@ class LLMClient:
                         result[field] = 0
                     elif field in ("trade_valid",):
                         result[field] = False
-                    elif field in ("confluences_used",):
-                        result[field] = []
-                    elif field in ("direction", "scenario", "sweep_level"):
+                    elif field in ("direction", "scenario"):
                         result[field] = "none"
-                    elif field in ("news_sentiment", "social_sentiment"):
-                        result[field] = "neutral"
                     elif field == "reason":
                         result[field] = "champs manquants dans la réponse"
-                    else:
-                        result[field] = None
+
+            # Appliquer les默认值 pour champs optionnels
+            for field, default in OPTIONAL_FIELDS.items():
+                if field not in result:
+                    result[field] = default
 
             result["llm_used"] = llm_used
             logger.info(
