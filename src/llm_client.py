@@ -1,7 +1,7 @@
-"""Module LLM — MiniMax M2.5 (principal) + Groq Llama 3.3 70B (fallback).
+"""Module LLM — Claude Sonnet 4.6 (principal) + Groq Llama 3.3 70B (fallback).
 
-MiniMax est le cerveau principal. Si timeout (10s) ou erreur → switch Groq.
-Si fallback actif et confidence <= 85 → force trade_valid: false.
+Claude est le cerveau principal. Si timeout ou erreur → switch Groq.
+Groq en fallback — pas de seuil de confidence car ce n'est plus un fallback critique.
 Ref: SPEC.md sections 11, 12, 22.
 """
 
@@ -9,7 +9,7 @@ import json
 import logging
 import re
 
-import openai
+import anthropic
 import groq
 
 from src.config import Config
@@ -44,12 +44,11 @@ INVALID_SIGNAL = {
 
 
 class LLMClient:
-    """Client LLM avec fallback automatique MiniMax → Groq."""
+    """Client LLM avec fallback automatique Claude → Groq."""
 
     def __init__(self):
-        self._minimax_client = openai.OpenAI(
-            api_key=Config.MINIMAX_API_KEY,
-            base_url=Config.MINIMAX_BASE_URL,
+        self._anthropic_client = anthropic.Anthropic(
+            api_key=Config.ANTHROPIC_API_KEY,
         )
         self._groq_client = groq.Groq(api_key=Config.GROQ_API_KEY)
         self._timeout = Config.LLM_TIMEOUT
@@ -234,23 +233,22 @@ class LLMClient:
         system_prompt = self.get_system_prompt()
         user_prompt = self.build_analysis_prompt(data)
 
-        # Tentative MiniMax (1 essai + 1 retry immédiat)
+        # Tentative Claude (principal)
         response_text = None
-        llm_used = "minimax"
-
+        llm_used = "claude"
         for attempt in range(2):
             try:
-                response_text = self._call_minimax(system_prompt, user_prompt)
-                logger.info("MiniMax a répondu (tentative %d)", attempt + 1)
+                response_text = self._call_claude(system_prompt, user_prompt)
+                logger.info("Claude a répondu (tentative %d)", attempt + 1)
                 break
             except Exception as e:
                 logger.warning(
-                    "MiniMax tentative %d échouée : %s", attempt + 1, e
+                    "Claude tentative %d échouée : %s", attempt + 1, e
                 )
 
-        # Fallback Groq si MiniMax a échoué
+        # Fallback Groq si Claude a échoué
         if response_text is None:
-            logger.warning("MiniMax indisponible — switch sur Groq fallback")
+            logger.warning("Claude indisponible — switch sur Groq fallback")
             llm_used = "groq"
             for attempt in range(2):
                 try:
@@ -272,24 +270,10 @@ class LLMClient:
         result = self._parse_response(response_text, llm_used)
         result["asset"] = result.get("asset") or data.get("asset")
 
-        # Règle fallback : si Groq et confidence < 75 → invalide
-        if llm_used == "groq" and result.get("confidence", 0) < 75:
-            logger.warning(
-                "Fallback Groq avec confidence %d < 75 — trade invalidé",
-                result.get("confidence", 0),
-            )
-            result["trade_valid"] = False
-            result["entry_price"] = None
-            result["sl_price"] = None
-            result["tp_price"] = None
-            result["rr_ratio"] = None
-            if "fallback" not in (result.get("reason") or ""):
-                result["reason"] = f"Fallback Groq, confidence insuffisante ({result.get('confidence', 0)}%)"
-
         return result
 
-    def _call_minimax(self, system_prompt: str, user_prompt: str) -> str:
-        """Appelle MiniMax via le SDK OpenAI.
+    def _call_claude(self, system_prompt: str, user_prompt: str) -> str:
+        """Appelle Claude via le SDK Anthropic.
 
         Args:
             system_prompt: Prompt système.
@@ -301,17 +285,17 @@ class LLMClient:
         Raises:
             Exception: Si l'appel échoue ou timeout.
         """
-        response = self._minimax_client.chat.completions.create(
-            model=Config.MINIMAX_MODEL,
+        response = self._anthropic_client.messages.create(
+            model=Config.CLAUDE_MODEL,
+            max_tokens=1024,
+            system=system_prompt,
             messages=[
-                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
             temperature=0.1,
-            timeout=self._timeout,
         )
-        content = response.choices[0].message.content
-        logger.debug("Réponse MiniMax brute : %s", content[:200])
+        content = response.content[0].text
+        logger.debug("Réponse Claude brute : %s", content[:200])
         return content
 
     def _call_groq(self, system_prompt: str, user_prompt: str) -> str:

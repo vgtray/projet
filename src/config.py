@@ -49,10 +49,9 @@ class Config:
     BOT_MAGIC = 123456
     MAX_SLIPPAGE = 20
 
-    # --- MiniMax API (principal) ---
-    MINIMAX_API_KEY = os.getenv("MINIMAX_API_KEY", "")
-    MINIMAX_BASE_URL = os.getenv("MINIMAX_BASE_URL", "https://api.minimax.io/v1")
-    MINIMAX_MODEL = os.getenv("MINIMAX_MODEL", "MiniMax-M2.5")
+    # --- Claude API (principal) ---
+    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+    CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514")
 
     # --- Groq API (fallback) ---
     GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
