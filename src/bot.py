@@ -294,10 +294,9 @@ class TradingBot:
             direction = signal_result.get("direction")
             sweep_level = signal_result.get("sweep_level")
 
-            # 17a. Déduplication (spec section 19)
-            if self.db.check_duplicate_signal(asset, direction, sweep_level,
-                                              Config.DEDUP_WINDOW_MINUTES):
-                logger.info("Duplicate signal skipped — %s %s %s", asset, direction, sweep_level)
+            # 17a. Déduplication — vérifier les trades exécutés, pas les signaux
+            if self.db.check_duplicate_trade(asset, direction, Config.DEDUP_WINDOW_MINUTES):
+                logger.info("Duplicate trade skipped — %s %s", asset, direction)
                 self._last_analyzed[asset] = last_ts
                 self.db.set_bot_state(f"last_analyzed_{asset}", last_ts)
                 return

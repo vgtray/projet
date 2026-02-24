@@ -158,23 +158,24 @@ class Database:
         except Exception as e:
             logger.error("Erreur incrément daily_trade_count : %s", e)
 
-    def check_duplicate_signal(self, asset: str, direction: str, sweep_level: str,
+    def check_duplicate_trade(self, asset: str, direction: str,
                                window_minutes: int = 15) -> bool:
-        """Retourne True si un signal identique existe dans la fenêtre de déduplication."""
+        """Retourne True si un trade exécuté existe dans la fenêtre de déduplication."""
         sql = """
-            SELECT COUNT(*) FROM signals
+            SELECT COUNT(*) FROM trades
             WHERE asset = %s
               AND direction = %s
-              AND sweep_level = %s
-              AND timestamp > NOW() - (%s * INTERVAL '1 minute')
+              AND status = 'open'
+              AND entry_time > NOW() - (%s * INTERVAL '1 minute')
         """
         try:
             with self.conn.cursor() as cur:
-                cur.execute(sql, (asset, direction, sweep_level, window_minutes))
+                cur.execute(sql, (asset, direction, window_minutes))
                 row = cur.fetchone()
                 return row[0] > 0 if row else False
         except Exception as e:
-            logger.error("Erreur vérification doublon signal : %s", e)
+            logger.error("Erreur vérification doublon trade : %s", e)
+            return False
             return False
 
     def get_performance_stats(self, pattern_type: str, asset: str) -> Optional[dict]:
