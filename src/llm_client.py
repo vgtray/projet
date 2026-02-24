@@ -125,12 +125,11 @@ class LLMClient:
             "- Stats de performances passées pour patterns similaires (auto-calibration)\n"
             "\n"
             "## FORMAT DE RÉPONSE OBLIGATOIRE\n"
-            "Réponds UNIQUEMENT en JSON compact, rien d'autre :\n"
-            '{"a":"XAUUSD","d":"l|s|n","s":"r|c|u|n","c":0,"e":null,"sl":null,"tp":null,"rr":null,"cf":[],"sw":"none","ns":"n","ss":"n","v":false,"r":"x"}\n'
+            "Réponds UNIQUEMENT en JSON, rien d'autre :\n"
+            '{"direction": "long", "confidence": 75, "entry_price": 5150.0, "sl_price": 5140.0, "tp_price": 5160.0, "trade_valid": true, "reason": "explication"}\n'
             "\n"
-            "Clés: a=asset, d=direction(l/s/n), s=scenario(r/c/u/n), c=confidence%, e=entry, sl=stoploss, tp=takeprofit, rr=RR, cf=confluences, sw=sweep, ns=news, ss=social, v=valid, r=reason(court).\n"
-            "Si v=false → e,sl,tp,rr=null.\n"
-            "Ne jamais halluciner."
+            "Tous les champs requis: direction(long/short/none), scenario(reversal/continuation/none), confidence(0-100), entry_price, sl_price, tp_price, trade_valid(true/false), reason.\n"
+            "Si trade_valid=false → entry_price,sl_price,tp_price=null."
         )
 
     def build_analysis_prompt(self, data: dict) -> str:
@@ -295,7 +294,7 @@ class LLMClient:
             temperature=0.1,
         )
         content = response.content[0].text
-        logger.debug("Réponse Claude brute : %s", content[:200])
+        logger.info("Réponse Claude brute : %s", content[:500])
         return content
 
     def _call_groq(self, system_prompt: str, user_prompt: str) -> str:
