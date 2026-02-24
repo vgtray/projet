@@ -49,11 +49,11 @@ class TradingBot:
 
     def start(self):
         """Démarre le bot : logging, connexions, boucles parallèles, shutdown."""
-        setup_logging()
         logger.info("=== Démarrage du bot SMC/ICT ===")
 
         self.db.connect()
         self.db.init_schema()
+        setup_logging(db=self.db)
 
         if not self.mt5.connect():
             logger.critical("Impossible de connecter MT5 — arrêt du bot")

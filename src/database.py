@@ -276,3 +276,16 @@ class Database:
         except Exception as e:
             logger.error("Erreur lecture trades ouverts : %s", e)
             return []
+
+    def save_log(self, level: str, message: str) -> None:
+        """Insère une ligne de log dans bot_logs."""
+        if not self.conn or self.conn.closed:
+            return
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO bot_logs (level, message) VALUES (%s, %s)",
+                    (level, message)
+                )
+        except Exception:
+            pass  # Ne jamais crasher à cause du logging

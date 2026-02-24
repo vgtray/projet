@@ -77,3 +77,10 @@ INSERT INTO bot_state (key, value) VALUES ('last_analyzed_XAUUSD', '')
 ON CONFLICT (key) DO NOTHING;
 INSERT INTO bot_state (key, value) VALUES ('last_analyzed_US100', '')
 ON CONFLICT (key) DO NOTHING;
+CREATE TABLE IF NOT EXISTS bot_logs (
+    id SERIAL PRIMARY KEY,
+    level VARCHAR(10) NOT NULL,
+    message TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_bot_logs_created ON bot_logs(created_at DESC);

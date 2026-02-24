@@ -5,7 +5,7 @@ import logging
 from logging.handlers import TimedRotatingFileHandler
 
 
-def setup_logging() -> logging.Logger:
+def setup_logging(db=None) -> logging.Logger:
     """Configure le logging avec rotation journalière et sortie console.
 
     Retourne le logger racine configuré avec :
@@ -27,11 +27,7 @@ def setup_logging() -> logging.Logger:
     fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 
     file_handler = TimedRotatingFileHandler(
-        log_file,
-        when="midnight",
-        interval=1,
-        backupCount=30,
-        encoding="utf-8",
+        log_file, when="midnight", interval=1, backupCount=30, encoding="utf-8"
     )
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(fmt)
@@ -41,5 +37,12 @@ def setup_logging() -> logging.Logger:
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(fmt)
     logger.addHandler(console_handler)
+
+    if db is not None:
+        from src.db_log_handler import DatabaseLogHandler
+        db_handler = DatabaseLogHandler(db)
+        db_handler.setLevel(logging.INFO)
+        db_handler.setFormatter(fmt)
+        logger.addHandler(db_handler)
 
     return logger
