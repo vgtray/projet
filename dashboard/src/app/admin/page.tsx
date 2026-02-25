@@ -111,7 +111,7 @@ export default function AdminDashboard() {
   const pnlSign = stats.total_pnl >= 0 ? '+' : '';
 
   return (
-    <AdminGuard requiredRole="admin">
+    <AdminGuard requiredRole="owner">
       <Header />
       <main className="mx-auto max-w-screen-2xl space-y-6 px-4 py-6 lg:px-6">
         {/* Bot Control Panel */}
