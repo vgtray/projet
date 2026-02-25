@@ -8,8 +8,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "start": "npx tsx scripts/init-db.ts && next start",
+    "lint": "eslint",
+    "db:init": "npx tsx scripts/init-db.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.17.0",
@@ -34,6 +35,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   },
   "overrides": {

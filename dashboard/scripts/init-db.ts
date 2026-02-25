@@ -1,6 +1,14 @@
--- Better Auth Schema for PostgreSQL
+import { Pool } from "pg";
 
--- User table (using "users" to avoid reserved keyword)
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT || "5432"),
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+});
+
+const schema = `
 CREATE TABLE IF NOT EXISTS "users" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "name" TEXT NOT NULL,
@@ -11,7 +19,6 @@ CREATE TABLE IF NOT EXISTS "users" (
     "updatedAt" TIMESTAMPTZ NOT NULL
 );
 
--- Session table
 CREATE TABLE IF NOT EXISTS "session" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "expiresAt" TIMESTAMPTZ NOT NULL,
@@ -25,7 +32,6 @@ CREATE TABLE IF NOT EXISTS "session" (
 
 CREATE INDEX IF NOT EXISTS "session_userId_idx" ON "session"("userId");
 
--- Account table
 CREATE TABLE IF NOT EXISTS "account" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "accountId" TEXT NOT NULL,
@@ -44,7 +50,6 @@ CREATE TABLE IF NOT EXISTS "account" (
 
 CREATE INDEX IF NOT EXISTS "account_userId_idx" ON "account"("userId");
 
--- Verification table
 CREATE TABLE IF NOT EXISTS "verification" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "identifier" TEXT NOT NULL,
@@ -55,3 +60,18 @@ CREATE TABLE IF NOT EXISTS "verification" (
 );
 
 CREATE INDEX IF NOT EXISTS "verification_identifier_idx" ON "verification"("identifier");
+`;
+
+async function initDb() {
+  console.log("Initializing database schema...");
+  try {
+    await pool.query(schema);
+    console.log("Database schema initialized successfully!");
+  } catch (error) {
+    console.error("Error initializing database schema:", error);
+  } finally {
+    await pool.end();
+  }
+}
+
+initDb();
