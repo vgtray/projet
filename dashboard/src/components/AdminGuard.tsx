@@ -31,7 +31,7 @@ export default function AdminGuard({ children, requiredRole = 'admin' }: AdminGu
           user: 1,
         };
         
-        const userRole = data.role || 'user';
+        const userRole = (data.role || 'user') as UserRole;
         if (roleHierarchy[userRole] >= roleHierarchy[requiredRole]) {
           setHasAccess(true);
         } else {
