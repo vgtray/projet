@@ -5,6 +5,8 @@ import { cn } from '@/lib/utils';
 import { timeAgo } from '@/lib/utils';
 import { Play, Pause } from 'lucide-react';
 
+type UserRole = 'owner' | 'admin' | 'user';
+
 interface BotState {
   bot_active: boolean;
   bot_paused: boolean;
@@ -28,6 +30,7 @@ function isRecentlyActive(lastAnalyzed: string | null): boolean {
 export default function BotStatus() {
   const [state, setState] = useState<BotState>(defaultState);
   const [toggling, setToggling] = useState(false);
+  const [userRole, setUserRole] = useState<UserRole>('user');
 
   const isActive =
     isRecentlyActive(state.last_analyzed_XAUUSD) ||
@@ -41,7 +44,18 @@ export default function BotStatus() {
       } catch { /* retry next interval */ }
     }
 
+    async function fetchUserRole() {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          setUserRole(data.role || 'user');
+        }
+      } catch { /* not logged in */ }
+    }
+
     fetchStatus();
+    fetchUserRole();
     const interval = setInterval(fetchStatus, 10_000);
     return () => clearInterval(interval);
   }, []);
@@ -62,6 +76,8 @@ export default function BotStatus() {
     } catch { /* silently fail */ }
     setToggling(false);
   }
+
+  const canControl = userRole === 'owner' || userRole === 'admin';
 
   return (
     <div className="flex items-center gap-3">
@@ -99,29 +115,31 @@ export default function BotStatus() {
         </span>
       </div>
 
-      {/* Toggle button */}
-      <button
-        onClick={togglePause}
-        disabled={toggling}
-        className={cn(
-          'flex items-center gap-1.5 rounded-md border px-3 py-1.5 font-display text-xs font-medium transition-colors disabled:opacity-50',
-          state.bot_paused
-            ? 'border-profit/30 bg-profit-dim/20 text-profit hover:bg-profit-dim/40'
-            : 'border-warning/30 bg-warning-dim/20 text-warning hover:bg-warning-dim/40'
-        )}
-      >
-        {state.bot_paused ? (
-          <>
-            <Play className="h-3 w-3" />
-            Resume
-          </>
-        ) : (
-          <>
-            <Pause className="h-3 w-3" />
-            Pause
-          </>
-        )}
-      </button>
+      {/* Toggle button - only for admin/owner */}
+      {canControl && (
+        <button
+          onClick={togglePause}
+          disabled={toggling}
+          className={cn(
+            'flex items-center gap-1.5 rounded-md border px-3 py-1.5 font-display text-xs font-medium transition-colors disabled:opacity-50',
+            state.bot_paused
+              ? 'border-profit/30 bg-profit-dim/20 text-profit hover:bg-profit-dim/40'
+              : 'border-warning/30 bg-warning-dim/20 text-warning hover:bg-warning-dim/40'
+          )}
+        >
+          {state.bot_paused ? (
+            <>
+              <Play className="h-3 w-3" />
+              Resume
+            </>
+          ) : (
+            <>
+              <Pause className="h-3 w-3" />
+              Pause
+            </>
+          )}
+        </button>
+      )}
     </div>
   );
 }
