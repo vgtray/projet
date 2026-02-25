@@ -8,6 +8,7 @@ Ref: SPEC.md sections 11, 12, 22.
 import json
 import logging
 import re
+import time
 
 import anthropic
 import groq
@@ -264,18 +265,25 @@ class LLMClient:
         system_prompt = self.get_system_prompt()
         user_prompt = self.build_analysis_prompt(data)
 
-        # Tentative Claude (principal)
+        # Tentative Claude (principal) avec plus de retry
         response_text = None
         llm_used = "claude"
-        for attempt in range(2):
+        claude_retries = 4  # Plus de tentatives pour gérer la surcharge
+        
+        for attempt in range(claude_retries):
             try:
                 response_text = self._call_claude(system_prompt, user_prompt)
-                logger.info("Claude a répondu (tentative %d)", attempt + 1)
+                logger.info("Claude a répondu (tentative %d/%d)", attempt + 1, claude_retries)
                 break
             except Exception as e:
-                logger.warning(
-                    "Claude tentative %d échouée : %s", attempt + 1, e
-                )
+                if attempt < claude_retries - 1:
+                    wait = (attempt + 1) * 2  # Backoff: 2s, 4s, 6s
+                    logger.warning("Claude tentative %d/%d échouée : %s — retry dans %ds", 
+                                  attempt + 1, claude_retries, e, wait)
+                    time.sleep(wait)
+                else:
+                    logger.warning("Claude tentative %d/%d échouée : %s", 
+                                  attempt + 1, claude_retries, e)
 
         # Fallback Groq si Claude a échoué
         if response_text is None:
