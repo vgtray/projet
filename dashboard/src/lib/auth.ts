@@ -11,6 +11,9 @@ export const auth = betterAuth({
     password: process.env.DB_PASSWORD || "",
     max: 5,
   }),
+  user: {
+    modelName: "users",
+  },
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
