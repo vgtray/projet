@@ -25,6 +25,7 @@ from src.confluences import ConfluenceDetector
 from src.indicators import Indicators
 from src.sentiment import SentimentAnalyzer
 from src.llm_client import LLMClient
+from src.volume_profile import VolumeProfileAnalyzer
 from src.logging_setup import setup_logging
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,7 @@ class TradingBot:
         self.indicators = Indicators()
         self.sentiment = SentimentAnalyzer()
         self.llm = LLMClient()
+        self.volume_profile = VolumeProfileAnalyzer()
         self.running = False
         self._last_analyzed: dict[str, str] = {}
         self._threads: list[threading.Thread] = []
@@ -203,7 +205,24 @@ class TradingBot:
         # 11. Sentiment
         sentiment = self.sentiment.get_all_sentiment(asset)
 
-        # 12. Stats de performance
+        # 12. Volume Profile & Order Flow (need extended candles)
+        vp_data = {}
+        if candles_extended is not None and not candles_extended.empty:
+            vp_result = self.volume_profile.analyze_market_structure(candles_extended)
+            if vp_result:
+                vp_data = {
+                    "poc": round(vp_result.get("poc", 0), 5) if vp_result.get("poc") else None,
+                    "vah": round(vp_result.get("vah", 0), 5) if vp_result.get("vah") else None,
+                    "val": round(vp_result.get("val", 0), 5) if vp_result.get("val") else None,
+                    "vwap": round(vp_result.get("vwap", 0), 5) if vp_result.get("vwap") else None,
+                    "trend": vp_result.get("trend", "unknown"),
+                    "delta_trend": vp_result.get("delta_trend", "unknown"),
+                    "delta_ratio": round(vp_result.get("delta_ratio", 0), 3) if vp_result.get("delta_ratio") else 0,
+                    "price_in_value_area": vp_result.get("price_in_value_area"),
+                    "zone": vp_result.get("zone", "unknown"),
+                }
+
+        # 13. Stats de performance
         perf_history = {}
         for pattern in ("reversal", "continuation"):
             stats = self.db.get_performance_stats(pattern, asset)
@@ -251,6 +270,7 @@ class TradingBot:
             "key_levels": key_levels,
             "confluences": confluences_flat,
             "sweep_info": sweep_info,
+            "volume_profile": vp_data,
             "news_sentiment": sentiment.get("news_sentiment", "neutral"),
             "social_sentiment": sentiment.get("social_sentiment", "neutral"),
             "performance_history": perf_history,
