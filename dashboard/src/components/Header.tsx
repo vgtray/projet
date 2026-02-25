@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import BotStatus from '@/components/BotStatus';
 import { cn } from '@/lib/utils';
 import { LayoutDashboard, Radio, ScrollText, LogOut } from 'lucide-react';
-import { signOut, useSession } from '@/lib/auth-client';
+import { authClient } from '@/lib/auth-client';
 
 const nav = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -16,10 +16,10 @@ const nav = [
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session } = authClient.useSession();
 
   const handleSignOut = async () => {
-    await signOut();
+    await authClient.signOut();
     router.push("/login");
   };
 

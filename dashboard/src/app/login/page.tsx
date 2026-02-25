@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signIn } from "@/lib/auth-client";
+import { authClient } from "@/lib/auth-client";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -20,7 +20,7 @@ export default function LoginPage() {
 
     try {
       if (isSignUp) {
-        const { error } = await signUp.email({
+        const { error } = await authClient.signUp.email({
           email,
           password,
           name: name || undefined,
@@ -31,7 +31,7 @@ export default function LoginPage() {
           router.push("/");
         }
       } else {
-        const { error } = await signIn.email({
+        const { error } = await authClient.signIn.email({
           email,
           password,
         });
