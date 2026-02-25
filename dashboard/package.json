@@ -43,5 +43,8 @@
   },
   "overrides": {
     "node-domexception": "^2.0.0"
+  },
+  "npm": {
+    "legacy-peer-deps": true
   }
 }
