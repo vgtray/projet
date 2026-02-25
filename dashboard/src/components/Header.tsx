@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import BotStatus from '@/components/BotStatus';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Radio, ScrollText } from 'lucide-react';
+import { LayoutDashboard, Radio, ScrollText, LogOut } from 'lucide-react';
+import { signOut, useSession } from '@/lib/auth-client';
 
 const nav = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -14,6 +15,13 @@ const nav = [
 
 export default function Header() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { data: session } = useSession();
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push("/login");
+  };
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-bg/80 backdrop-blur-md">
@@ -56,7 +64,22 @@ export default function Header() {
         </div>
 
         {/* Bot Status */}
-        <BotStatus />
+        <div className="flex items-center gap-4">
+          {session?.user && (
+            <span className="text-sm text-zinc-400 hidden md:block">
+              {session.user.name || session.user.email}
+            </span>
+          )}
+          <button
+            onClick={handleSignOut}
+            className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-zinc-400 hover:text-white transition-colors"
+            title="Sign out"
+          >
+            <LogOut className="h-4 w-4" />
+            <span className="hidden md:inline">Sign Out</span>
+          </button>
+          <BotStatus />
+        </div>
       </div>
     </header>
   );
