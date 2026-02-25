@@ -30,7 +30,7 @@ export async function getUserById(userId: string): Promise<UserWithRole | null> 
   try {
     const result = await pool.query(
       `SELECT u.id, u.email, u.name, u."createdAt", COALESCE(r.role, 'user') as role
-       FROM "user" u
+       FROM "users" u
        LEFT JOIN user_roles r ON u.id = r.user_id
        WHERE u.id = $1`,
       [userId]
@@ -49,7 +49,7 @@ export async function getAllUsers(): Promise<UserWithRole[]> {
   try {
     const result = await pool.query(
       `SELECT u.id, u.email, u.name, u."createdAt", COALESCE(r.role, 'user') as role
-       FROM "user" u
+       FROM "users" u
        LEFT JOIN user_roles r ON u.id = r.user_id
        ORDER BY u."createdAt" DESC`
     );
