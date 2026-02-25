@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import AdminGuard from '@/components/AdminGuard';
 import Header from '@/components/Header';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
@@ -81,7 +82,7 @@ export default function SignalsPage() {
   }, [fetchSignals]);
 
   return (
-    <>
+    <AdminGuard requiredRole="admin">
       <Header />
       <main className="mx-auto max-w-screen-2xl space-y-6 px-4 py-6 lg:px-6">
         {/* Filtres */}
@@ -207,6 +208,6 @@ export default function SignalsPage() {
           )}
         </Card>
       </main>
-    </>
+    </AdminGuard>
   );
 }

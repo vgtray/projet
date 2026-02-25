@@ -8,12 +8,6 @@ import { cn } from '@/lib/utils';
 import { LayoutDashboard, Radio, ScrollText, LogOut, Settings } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 
-const nav = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/signals', label: 'Signals', icon: Radio },
-  { href: '/logs', label: 'Logs', icon: ScrollText },
-];
-
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
@@ -38,6 +32,14 @@ export default function Header() {
       checkRole();
     }
   }, [session]);
+
+  const nav = [
+    { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+    ...(isAdmin ? [
+      { href: '/signals', label: 'Signals', icon: Radio },
+      { href: '/logs', label: 'Logs', icon: ScrollText },
+    ] : []),
+  ];
 
   const handleSignOut = async () => {
     await authClient.signOut();
