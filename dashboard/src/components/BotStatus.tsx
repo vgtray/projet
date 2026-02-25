@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { timeAgo } from '@/lib/utils';
 import { Play, Pause } from 'lucide-react';
+import { useToast } from '@/components/Toast';
 
 type UserRole = 'owner' | 'admin' | 'user';
 
@@ -31,6 +32,7 @@ export default function BotStatus() {
   const [state, setState] = useState<BotState>(defaultState);
   const [toggling, setToggling] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>('user');
+  const { showToast } = useToast();
 
   const isActive =
     isRecentlyActive(state.last_analyzed_XAUUSD) ||
@@ -72,8 +74,13 @@ export default function BotStatus() {
       });
       if (res.ok) {
         setState(prev => ({ ...prev, bot_paused: action === 'pause' }));
+        showToast(action === 'pause' ? 'Bot en pause' : 'Bot reprit', 'success');
+      } else {
+        showToast('Erreur lors de l\'action', 'error');
       }
-    } catch { /* silently fail */ }
+    } catch { 
+      showToast('Erreur de connexion', 'error');
+    }
     setToggling(false);
   }
 

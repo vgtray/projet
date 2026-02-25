@@ -1,5 +1,30 @@
 @import "tailwindcss";
 
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+@keyframes fill {
+  from {
+    width: 0%;
+  }
+}
+
+.animate-fill {
+  animation: fill 1s ease-out forwards;
+}
+
 @theme inline {
   --color-bg: #0a0a0f;
   --color-surface: #12121a;
