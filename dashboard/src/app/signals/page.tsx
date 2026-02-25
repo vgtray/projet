@@ -70,9 +70,14 @@ export default function SignalsPage() {
   }, [validFilter, assetFilter, limit]);
 
   useEffect(() => {
-    fetchSignals();
+    const timer = setTimeout(() => {
+      fetchSignals();
+    }, 0);
     const interval = setInterval(fetchSignals, 30_000);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
   }, [fetchSignals]);
 
   return (

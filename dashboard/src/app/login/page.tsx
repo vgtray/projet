@@ -23,10 +23,10 @@ export default function LoginPage() {
         const { error } = await authClient.signUp.email({
           email,
           password,
-          name: name || undefined,
+          name: name || "",
         });
         if (error) {
-          setError(error.message);
+          setError(error.message || "Sign up failed");
         } else {
           router.push("/");
         }
@@ -36,12 +36,12 @@ export default function LoginPage() {
           password,
         });
         if (error) {
-          setError(error.message);
+          setError(error.message || "Sign in failed");
         } else {
           router.push("/");
         }
       }
-    } catch (err) {
+    } catch {
       setError("An unexpected error occurred");
     } finally {
       setLoading(false);

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { timeAgo } from '@/lib/utils';
-import { Play, Pause, Bot } from 'lucide-react';
+import { Play, Pause } from 'lucide-react';
 
 interface BotState {
   bot_active: boolean;

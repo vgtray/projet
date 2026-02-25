@@ -69,19 +69,29 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    fetchOpenTrades();
+    const timer = setTimeout(() => {
+      fetchOpenTrades();
+    }, 0);
     const interval = setInterval(fetchOpenTrades, 10_000);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
   }, [fetchOpenTrades]);
 
   useEffect(() => {
-    fetchClosedTrades();
-    fetchSignals();
+    const timer = setTimeout(() => {
+      fetchClosedTrades();
+      fetchSignals();
+    }, 0);
     const interval = setInterval(() => {
       fetchClosedTrades();
       fetchSignals();
     }, 30_000);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
   }, [fetchClosedTrades, fetchSignals]);
 
   function handleClose() {
