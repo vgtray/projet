@@ -315,7 +315,7 @@ class TradingBot:
             "tp_price": signal_result.get("tp_price"),
             "rr_ratio": signal_result.get("rr_ratio"),
             "confluences_used": confluences_normalized,
-            "sweep_level": signal_result.get("sweep_level"),
+            "sweep_level": sweep_info.get("level") if sweep_info else signal_result.get("sweep_level"),
             "news_sentiment": signal_result.get("news_sentiment"),
             "social_sentiment": signal_result.get("social_sentiment"),
             "trade_valid": signal_result.get("trade_valid", False),
