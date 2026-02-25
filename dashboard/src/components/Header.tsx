@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import BotStatus from '@/components/BotStatus';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Radio, ScrollText, LogOut } from 'lucide-react';
+import { LayoutDashboard, Radio, ScrollText, LogOut, Settings } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 
 const nav = [
@@ -17,6 +18,26 @@ export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const { data: session } = authClient.useSession();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    async function checkRole() {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.role === 'owner' || data.role === 'admin') {
+            setIsAdmin(true);
+          }
+        }
+      } catch (e) {
+        // Not admin
+      }
+    }
+    if (session?.user) {
+      checkRole();
+    }
+  }, [session]);
 
   const handleSignOut = async () => {
     await authClient.signOut();
@@ -63,8 +84,24 @@ export default function Header() {
           </nav>
         </div>
 
-        {/* Bot Status */}
+        {/* Right side */}
         <div className="flex items-center gap-4">
+          {/* Admin link */}
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className={cn(
+                'flex items-center gap-1.5 rounded-md px-3 py-1.5 font-display text-sm font-medium transition-colors',
+                pathname.startsWith('/admin')
+                  ? 'bg-surface text-text-primary'
+                  : 'text-text-muted hover:text-text-secondary'
+              )}
+            >
+              <Settings className="h-4 w-4" />
+              <span className="hidden md:inline">Admin</span>
+            </Link>
+          )}
+          
           {session?.user && (
             <span className="text-sm text-zinc-400 hidden md:block">
               {session.user.name || session.user.email}

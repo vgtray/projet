@@ -137,3 +137,17 @@ CREATE INDEX IF NOT EXISTS "session_userId_idx" ON "session"("userId");
 CREATE INDEX IF NOT EXISTS "session_token_idx" ON "session"("token");
 CREATE INDEX IF NOT EXISTS "account_userId_idx" ON "account"("userId");
 CREATE INDEX IF NOT EXISTS "verification_identifier_idx" ON "verification"("identifier");
+
+-- User Roles Table
+CREATE TABLE IF NOT EXISTS user_roles (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
+    role VARCHAR(20) NOT NULL DEFAULT 'user',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_roles_user_id ON user_roles(user_id);
+
+-- Bot State Enhanced
+ALTER TABLE bot_state ADD COLUMN IF NOT EXISTS paused_by VARCHAR(255);
+ALTER TABLE bot_state ADD COLUMN IF NOT EXISTS pause_reason TEXT;
