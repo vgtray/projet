@@ -277,6 +277,13 @@ class TradingBot:
             self.db.set_bot_state(f"last_analyzed_{asset}", last_ts)
             return
 
+        # Early exit: max trades déjà atteint
+        if daily_count >= Config.MAX_TRADES_PER_DAY:
+            logger.info("Max trades (%d) atteint pour %s — skip LLM", Config.MAX_TRADES_PER_DAY, asset)
+            self._last_analyzed[asset] = last_ts
+            self.db.set_bot_state(f"last_analyzed_{asset}", last_ts)
+            return
+
         data = {
             "asset": asset,
             "current_time_paris": now_paris.strftime("%Y-%m-%d %H:%M:%S"),
