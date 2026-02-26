@@ -200,13 +200,13 @@ export default function AdminDashboard() {
               <StatBlock label="Avg R:R" value={`${stats.avg_rr.toFixed(2)}R`} />
               <StatBlock
                 label="XAUUSD Auj."
-                value={`${stats.trades_today_xauusd}/2`}
-                color={stats.trades_today_xauusd >= 2 ? 'text-loss' : 'text-text-primary'}
+                value={`${stats.trades_today_xauusd}/5`}
+                color={stats.trades_today_xauusd >= 5 ? 'text-loss' : 'text-text-primary'}
               />
               <StatBlock
                 label="US100 Auj."
-                value={`${stats.trades_today_us100}/2`}
-                color={stats.trades_today_us100 >= 2 ? 'text-loss' : 'text-text-primary'}
+                value={`${stats.trades_today_us100}/5`}
+                color={stats.trades_today_us100 >= 5 ? 'text-loss' : 'text-text-primary'}
               />
             </div>
           </Card>

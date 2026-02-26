@@ -117,7 +117,7 @@ function KpiCard({ label, value, icon, valueColor = 'text-text-primary', sub }: 
   );
 }
 
-function DailyLimitBar({ label, used, max = 2 }: { label: string; used: number; max?: number }) {
+function DailyLimitBar({ label, used, max = 5 }: { label: string; used: number; max?: number }) {
   const pct = Math.min((used / max) * 100, 100);
   const color = pct >= 100 ? 'bg-loss' : pct >= 50 ? 'bg-warning' : 'bg-profit';
   return (
