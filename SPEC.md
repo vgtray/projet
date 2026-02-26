@@ -1,5 +1,34 @@
 # Trade Bot - Spécification Technique
 
+## Table des Matières
+
+1. [Assets Tradés](#1-assets-tradés)
+2. [Session de Trading](#2-session-de-trading)
+3. [Niveaux Clés](#3-niveaux-clés)
+4. [Confluences Valides](#4-confluences-valides)
+5. [3 Conditions Obligatoires](#5-3-conditions-obligatoires-pour-entrer)
+6. [2 Scénarios de Trading](#6-2-scénarios-de-trading)
+7. [Stop Loss et Take Profit](#7-stop-loss-et-take-profit)
+8. [Règle Anti-Overtrade](#8-règle-anti-overtrade)
+9. [Calcul du Lot Size](#9-calcul-du-lot-size)
+10. [Volume Profile & Order Flow](#10-volume-profile--order-flow)
+11. [Données Reçues à Chaque Analyse](#11-données-reçues-à-chaque-analyse)
+12. [Format de Réponse Obligatoire](#12-format-de-réponse-obligatoire)
+13. [Stack Technique](#13-stack-technique)
+14. [Architecture Globale](#14-architecture-globale)
+15. [Flux de Traitement](#15-flux-de-traitement)
+16. [Ordre de Développement](#16-ordre-de-développement)
+17. [Gestion des Erreurs et Résilience](#17-gestion-des-erreurs-et-résilience)
+18. [Logs](#18-logs)
+19. [Sécurité](#19-sécurité)
+20. [Déduplication des Signaux](#20-déduplication-des-signaux)
+21. [API Keys & Credentials](#21-api-keys--credentials)
+22. [Schéma Base de Données](#22-schéma-base-de-données)
+23. [Dashboard Admin Panel](#23-dashboard-admin-panel)
+24. [Prompt Système IA](#24-prompt-système-ia)
+25. [Fichier Config .env](#25-fichier-config-env)
+26. [.gitignore](#26-gitignore)
+
 ## Stratégie : SMC/ICT (Smart Money Concepts / Institutional Cut Theory)
 
 ---
@@ -139,7 +168,57 @@ lot_size = (capital * 0.01) / (distance_sl_pips * pip_value)
 
 ---
 
-## 10. DONNÉES REÇUES À CHAQUE ANALYSE
+## 10. VOLUME PROFILE & ORDER FLOW
+
+Le bot intègre une analyse de Volume Profile et Order Flow pour améliorer la qualité des signaux.
+
+### Volume Profile
+
+| Concept | Description |
+|---------|-------------|
+| **POC (Point of Control)** | Niveau de prix avec le plus volume échangé |
+| **VAH (Value Area High)** | Bordure haute de la zone de valeur (70% du volume) |
+| **VAL (Value Area Low)** | Bordure basse de la zone de valeur (70% du volume) |
+| **VWAP** | Volume Weighted Average Price |
+
+**Implémentation** : `src/volume_profile.py`
+- Utilise les volumes des bougies OHLCV (approximation sans Level 2 data)
+- Calcule le profil sur les 50 dernières bougies M5
+- Retourne POC, VAH, VAL, VWAP au LLM pour contexte supplémentaire
+
+### Order Flow Delta
+
+| Concept | Description |
+|---------|-------------|
+| **Delta** | Différence entre volume acheteur et vendeur |
+| **Cumulative Delta** | Somme cumulée du delta sur plusieurs bougies |
+| **Absorption** | Volume absorbé à un niveau (price rejection) |
+
+**Intégration** :
+- Le delta est calculé par approximation (close vs open)
+- Envoyé au LLM pour contexte supplémentaire
+
+### Données envoyées au LLM
+
+```json
+{
+  "volume_profile": {
+    "poc": 2045.50,
+    "vah": 2047.20,
+    "val": 2043.80,
+    "vwap": 2045.20
+  },
+  "order_flow": {
+    "delta": 150,
+    "cumulative_delta": 450,
+    "absorption_detected": false
+  }
+}
+```
+
+---
+
+## 11. DONNÉES REÇUES À CHAQUE ANALYSE
 
 Le bot reçoit les données suivantes pour chaque analyse :
 
@@ -686,9 +765,113 @@ INSERT INTO bot_state (key, value) VALUES ('last_analyzed_US100', '')
 ON CONFLICT (key) DO NOTHING;
 ```
 
+### Table : user_roles
+
+```sql
+CREATE TABLE user_roles (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(255) UNIQUE NOT NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'user',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CHECK (role IN ('owner', 'admin', 'user'))
+);
+
+CREATE INDEX idx_user_roles_user_id ON user_roles(user_id);
+CREATE INDEX idx_user_roles_role ON user_roles(role);
+```
+
+### Table : bot_state (colonnes additionnelles)
+
+```sql
+ALTER TABLE bot_state ADD COLUMN IF NOT EXISTS paused_by VARCHAR(255);
+ALTER TABLE bot_state ADD COLUMN IF NOT EXISTS pause_reason TEXT;
+```
+
 ---
 
-## 22. PROMPT SYSTÈME IA
+## 22. DASHBOARD ADMIN PANEL
+
+Le dashboard dispose d'un système de roles pour contrôler l'accès aux différentes pages.
+
+### Rôles et Permissions
+
+| Page/Fonctionnalité | Owner | Admin | User |
+|---------------------|-------|-------|------|
+| Dashboard | ✅ | ✅ | ✅ |
+| Signaux | ✅ | ✅ | ❌ |
+| Logs | ✅ | ✅ | ❌ |
+| Admin Panel | ✅ | ❌ | ❌ |
+| Gestion Users | ✅ | ❌ | ❌ |
+| Pause/Resume Bot | ✅ | ✅ | ❌ |
+| Settings | ✅ | ✅ | ❌ |
+
+### Architecture
+
+| Fichier | Rôle |
+|---------|------|
+| `dashboard/src/lib/auth-roles.ts` | Helpers pour gestion des roles |
+| `dashboard/src/app/api/auth/me/route.ts` | Retourne le role de l'utilisateur actuel |
+| `dashboard/src/app/api/admin/users/route.ts` | API pour gestion des utilisateurs |
+| `dashboard/src/app/api/bot/route.ts` | Vérifie le role pour pause/resume |
+| `dashboard/src/components/AdminGuard.tsx` | Protection de routes ( Owner uniquement) |
+| `dashboard/src/components/UserRoleBadge.tsx` | Badge affichant le role |
+
+### Pages Admin
+
+| Route | Accès | Description |
+|-------|-------|-------------|
+| `/admin` | Owner | Dashboard admin avec stats globales |
+| `/admin/users` | Owner | Gestion des utilisateurs et roles |
+| `/admin/settings` | Owner, Admin | Paramètres du bot |
+
+### API Routes
+
+#### GET /api/auth/me
+Retourne les infos de l'utilisateur connecté :
+```json
+{
+  "user": { "id": "...", "email": "...", "name": "..." },
+  "role": "owner"
+}
+```
+
+#### GET /api/admin/users
+Retourne la liste des utilisateurs avec leurs roles (Owner uniquement).
+
+#### POST /api/admin/users
+Crée ou met à jour le rôle d'un utilisateur (Owner uniquement).
+
+### Composants UI
+
+#### AdminGuard
+Protection de route pour les pages réservées aux Owner :
+```tsx
+<AdminGuard requiredRole="owner">
+  <AdminPage />
+</AdminGuard>
+```
+
+#### UserRoleBadge
+Affiche le rôle avec un badge colorisé :
+- Owner : Violet
+- Admin : Bleu
+- User : Gris
+
+### Intégration Tremor
+
+Le dashboard utilise [Tremor](https://tremor.so) pour les charts :
+- AreaChart pour le PnL journalier
+- DonutChart pour la répartition par asset
+- StatsBar améliorée avec données visuelles
+
+**Configuration** :
+- `dashboard/.npmrc` : `legacy-peer-deps=true` (React 19 compatibility)
+- Dependencies : `@tremor/react`, `recharts`
+
+---
+
+## 23. PROMPT SYSTÈME IA
 
 ```
 Tu es un algorithme de trading expert basé sur la stratégie SMC/ICT.
@@ -785,7 +968,7 @@ Ne jamais halluciner des niveaux ou des confluences non présents dans les donn�
 
 ---
 
-## 23. FICHIER CONFIG (.env)
+## 24. FICHIER CONFIG (.env)
 
 ```env
 # MiniMax API (principal)
@@ -820,7 +1003,7 @@ MT5_PORT=8001
 
 ---
 
-## 24. .GITIGNORE
+## 25. .GITIGNORE
 
 ```
 # Environment

@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import AdminGuard from '@/components/AdminGuard';
 import Header from '@/components/Header';
 import Card from '@/components/ui/Card';
@@ -14,7 +13,7 @@ export default function AdminSettingsPage() {
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-medium text-white mb-2">Configuration du Bot</h3>
-              <p className="text-zinc-400 text-sm">Les paramètres du bot sont configurés via les variables d'environnement.</p>
+              <p className="text-zinc-400 text-sm">Les paramètres du bot sont configurés via les variables d&apos;environnement.</p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

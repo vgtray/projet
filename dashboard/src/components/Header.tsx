@@ -13,6 +13,7 @@ export default function Header() {
   const router = useRouter();
   const { data: session } = authClient.useSession();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
 
   useEffect(() => {
     async function checkRole() {
@@ -20,7 +21,10 @@ export default function Header() {
         const res = await fetch('/api/auth/me');
         if (res.ok) {
           const data = await res.json();
-          if (data.role === 'owner' || data.role === 'admin') {
+          if (data.role === 'owner') {
+            setIsOwner(true);
+            setIsAdmin(true);
+          } else if (data.role === 'admin') {
             setIsAdmin(true);
           }
         }
@@ -88,8 +92,8 @@ export default function Header() {
 
         {/* Right side */}
         <div className="flex items-center gap-4">
-          {/* Admin link */}
-          {isAdmin && (
+          {/* Admin link - Owner only */}
+          {isOwner && (
             <Link
               href="/admin"
               className={cn(
