@@ -177,7 +177,7 @@ export default function PerformancePage() {
           <div className="flex items-center gap-3">
             <CurrencyToggle />
             {/* Range selector */}
-          <div className="flex items-center rounded-lg border border-border bg-surface p-1 gap-1">
+            <div className="flex items-center rounded-lg border border-border bg-surface p-1 gap-1">
             {RANGE_BTNS.map(btn => (
               <button
                 key={btn.value}
