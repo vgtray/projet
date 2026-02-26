@@ -30,6 +30,7 @@
   --tremor-success-subtle: #15803d;
   --tremor-success-emphasis: #4ade80;
   --tremor-success-contrast: #000000;
+  --sidebar-width: 240px;
 }
 
 @keyframes slide-in {
@@ -100,6 +101,10 @@
   border-radius: 3px;
 }
 
+html, body {
+  height: 100%;
+}
+
 body {
   background: var(--color-bg);
   color: var(--color-text-primary);
@@ -142,4 +147,20 @@ body {
 
 .animate-fill {
   animation: fill-bar 0.8s ease-out;
+}
+
+/* Recharts tooltip dark override */
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: #12121a !important;
+  border: 1px solid #1e1e2e !important;
+  border-radius: 8px !important;
+}
+
+/* KPI card hover glow */
+.kpi-card {
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.kpi-card:hover {
+  border-color: #2a2a3e;
+  box-shadow: 0 0 0 1px #2a2a3e;
 }

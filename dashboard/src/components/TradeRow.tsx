@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Badge from '@/components/ui/Badge';
 import { formatPrice, formatPnL, formatDate } from '@/lib/utils';
-import { X } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
 
 interface Trade {
   id: number;
@@ -24,7 +24,7 @@ interface TradeRowProps {
   onClose?: () => void;
 }
 
-const statusVariant = (trade: Trade) => {
+const statusVariant = (trade: Trade): 'success' | 'danger' | 'warning' | 'info' | 'neutral' => {
   if (trade.status === 'open') return 'info';
   if (trade.closed_reason === 'tp') return 'success';
   if (trade.closed_reason === 'sl') return 'danger';
@@ -34,9 +34,9 @@ const statusVariant = (trade: Trade) => {
 
 const statusLabel = (trade: Trade) => {
   if (trade.status === 'open') return 'OPEN';
-  if (trade.closed_reason === 'tp') return 'TP HIT';
-  if (trade.closed_reason === 'sl') return 'SL HIT';
-  if (trade.closed_reason === 'manual') return 'MANUAL';
+  if (trade.closed_reason === 'tp') return 'TP ✓';
+  if (trade.closed_reason === 'sl') return 'SL ✗';
+  if (trade.closed_reason === 'manual') return 'MANUEL';
   if (trade.status === 'closed') return 'CLOSED';
   return trade.status.toUpperCase();
 };
@@ -51,7 +51,6 @@ export default function TradeRow({ trade, onClose }: TradeRowProps) {
     setClosing(true);
     try {
       await fetch(`/api/trades/${trade.id}/close`, { method: 'POST' });
-      // Poller toutes les 2s jusqu'à confirmation de fermeture par le bot (max 20s)
       let attempts = 0;
       const poll = setInterval(async () => {
         attempts++;
@@ -78,47 +77,60 @@ export default function TradeRow({ trade, onClose }: TradeRowProps) {
   }
 
   return (
-    <tr className="border-b border-border transition-colors hover:bg-surface-hover">
-      <td className="px-3 py-3 font-display text-sm font-semibold text-text-primary">
-        {trade.asset}
+    <tr className="group border-b border-border/50 transition-colors hover:bg-surface-hover">
+      {/* Asset */}
+      <td className="px-4 py-3">
+        <div className="flex flex-col">
+          <span className="font-display text-sm font-semibold text-text-primary">{trade.asset}</span>
+          <span className="font-mono text-xs text-text-muted">{formatDate(trade.entry_time)}</span>
+        </div>
       </td>
-      <td className="px-3 py-3">
+      {/* Direction */}
+      <td className="px-4 py-3">
         <Badge variant={isLong ? 'success' : 'danger'}>
-          {isLong ? 'LONG' : 'SHORT'}
+          {isLong ? '▲ LONG' : '▼ SHORT'}
         </Badge>
       </td>
-      <td className="px-3 py-3 font-mono text-sm text-text-primary">
+      {/* Entry */}
+      <td className="px-4 py-3 font-mono text-sm text-text-primary">
         {formatPrice(trade.entry_price, trade.asset)}
       </td>
-      <td className="px-3 py-3 font-mono text-sm text-loss">
+      {/* SL */}
+      <td className="px-4 py-3 font-mono text-sm text-loss/80">
         {formatPrice(trade.sl_price, trade.asset)}
       </td>
-      <td className="px-3 py-3 font-mono text-sm text-profit">
+      {/* TP */}
+      <td className="px-4 py-3 font-mono text-sm text-profit/80">
         {formatPrice(trade.tp_price, trade.asset)}
       </td>
-      <td className="px-3 py-3 font-mono text-sm text-text-secondary">
-        {trade.lot_size ?? '—'}
+      {/* Lot */}
+      <td className="px-4 py-3 font-mono text-sm text-text-secondary">
+        {trade.lot_size != null ? Number(trade.lot_size).toFixed(2) : '—'}
       </td>
-      <td className={`px-3 py-3 font-mono text-sm font-semibold ${pnl.color}`}>
-        {pnl.text}
+      {/* PnL */}
+      <td className="px-4 py-3">
+        <span className={`font-mono text-sm font-semibold ${pnl.color}`}>
+          {pnl.text}
+        </span>
       </td>
-      <td className="px-3 py-3">
-        <Badge variant={statusVariant(trade)}>
-          {statusLabel(trade)}
-        </Badge>
+      {/* Status */}
+      <td className="px-4 py-3">
+        <Badge variant={statusVariant(trade)}>{statusLabel(trade)}</Badge>
       </td>
-      <td className="px-3 py-3 text-sm text-text-secondary">
-        {formatDate(trade.entry_time)}
-      </td>
-      <td className="px-3 py-3">
+      {/* Action */}
+      <td className="px-4 py-3">
         {trade.status === 'open' && (
           <button
             onClick={handleClose}
             disabled={closing}
-            className="flex items-center gap-1 rounded border border-loss/30 bg-loss-dim/30 px-2.5 py-1 font-display text-xs font-medium text-loss transition-colors hover:bg-loss-dim/60 disabled:opacity-50"
+            className="flex items-center gap-1 rounded-lg border border-loss/30 bg-loss/5 px-2.5 py-1.5 font-display text-xs font-medium text-loss transition-all hover:bg-loss/15 disabled:opacity-50"
           >
-            <X className="h-3 w-3" />
-            {closing ? '...' : 'Fermer'}
+            {closing ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <X className="h-3 w-3" />
+            )}
+            {closing ? 'Fermeture...' : 'Fermer'}
           </button>
         )}
       </td>

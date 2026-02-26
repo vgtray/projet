@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import AdminGuard from '@/components/AdminGuard';
-import Header from '@/components/Header';
+import AppShell from '@/components/AppShell';
 import Card from '@/components/ui/Card';
+import EmptyState from '@/components/ui/EmptyState';
+import { SkeletonRow } from '@/components/ui/Skeleton';
 import UserRoleBadge from '@/components/UserRoleBadge';
 import { format } from 'date-fns';
+import { Users } from 'lucide-react';
 
 type UserRole = 'owner' | 'admin' | 'user';
 
@@ -20,6 +23,8 @@ interface User {
 interface CurrentUser {
   role: UserRole;
 }
+
+const SELECT_CLS = 'rounded-lg border border-border bg-bg px-2.5 py-1.5 font-display text-sm text-text-primary outline-none transition-colors focus:border-border-bright disabled:opacity-50';
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -37,7 +42,6 @@ export default function AdminUsersPage() {
         fetch('/api/admin/users'),
         fetch('/api/auth/me'),
       ]);
-      
       if (usersRes.ok) {
         const data = await usersRes.json();
         setUsers(data.users || []);
@@ -46,11 +50,8 @@ export default function AdminUsersPage() {
         const data = await meRes.json();
         setCurrentUser(data);
       }
-    } catch (e) {
-      console.error('Error:', e);
-    } finally {
-      setLoading(false);
-    }
+    } catch { /* retry */ }
+    finally { setLoading(false); }
   }
 
   async function updateRole(userId: string, newRole: UserRole) {
@@ -61,84 +62,99 @@ export default function AdminUsersPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, role: newRole }),
       });
-      
       if (res.ok) {
         setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
       }
-    } catch (e) {
-      console.error('Error:', e);
-    } finally {
-      setUpdating(null);
-    }
-  }
-
-  if (loading) {
-    return (
-      <AdminGuard requiredRole="owner">
-        <div className="min-h-screen flex items-center justify-center bg-zinc-950">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
-        </div>
-      </AdminGuard>
-    );
+    } catch { /* retry */ }
+    finally { setUpdating(null); }
   }
 
   return (
     <AdminGuard requiredRole="owner">
-      <Header />
-      <main className="mx-auto max-w-screen-2xl space-y-6 px-4 py-6 lg:px-6">
-        <Card title="Gestion des Utilisateurs">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-zinc-800">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">Utilisateur</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">Email</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">Rôle</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">Créé le</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800">
-                {users.map((user) => (
-                  <tr key={user.id} className="hover:bg-zinc-800/50">
-                    <td className="px-4 py-3">
-                      <span className="text-white font-medium">{user.name || '—'}</span>
-                    </td>
-                    <td className="px-4 py-3 text-zinc-300">{user.email}</td>
-                    <td className="px-4 py-3">
-                      <UserRoleBadge role={user.role} />
-                    </td>
-                    <td className="px-4 py-3 text-zinc-400 text-sm">
-                      {user.createdAt ? format(new Date(user.createdAt), 'dd/MM/yyyy HH:mm') : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      {currentUser?.role === 'owner' && user.role !== 'owner' && (
-                        <select
-                          value={user.role}
-                          onChange={(e) => updateRole(user.id, e.target.value as UserRole)}
-                          disabled={updating === user.id}
-                          className="px-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-white text-sm focus:outline-none focus:border-emerald-500 disabled:opacity-50"
-                        >
-                          <option value="user">User</option>
-                          <option value="admin">Admin</option>
-                          <option value="owner">Owner</option>
-                        </select>
-                      )}
-                      {user.role === 'owner' && (
-                        <span className="text-xs text-zinc-500">Propriétaire</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <AppShell>
+        <div className="space-y-5 p-4 lg:p-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="font-display text-xl font-bold text-text-primary">Utilisateurs</h1>
+              <p className="mt-0.5 text-sm text-text-muted">Gestion des rôles et accès</p>
+            </div>
+            {!loading && (
+              <span className="rounded-full border border-border bg-surface px-3 py-1 font-mono text-xs text-text-muted">
+                {users.length} utilisateur{users.length > 1 ? 's' : ''}
+              </span>
+            )}
           </div>
-          
-          {users.length === 0 && (
-            <p className="py-8 text-center text-zinc-400">Aucun utilisateur</p>
-          )}
-        </Card>
-      </main>
+
+          <Card noPadding>
+            <div className="overflow-x-auto">
+              {loading ? (
+                <table className="w-full min-w-[500px]">
+                  <thead>
+                    <tr className="border-b border-border">
+                      {['Utilisateur', 'Email', 'Rôle', 'Créé le', 'Actions'].map(h => (
+                        <th key={h} className="px-4 py-2.5 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...Array(3)].map((_, i) => <SkeletonRow key={i} cols={5} />)}
+                  </tbody>
+                </table>
+              ) : users.length === 0 ? (
+                <EmptyState
+                  icon={Users}
+                  title="Aucun utilisateur"
+                  description="Les utilisateurs inscrits apparaîtront ici"
+                  className="py-12"
+                />
+              ) : (
+                <table className="w-full min-w-[500px]">
+                  <thead>
+                    <tr className="border-b border-border">
+                      {['Utilisateur', 'Email', 'Rôle', 'Créé le', 'Actions'].map(h => (
+                        <th key={h} className="px-4 py-2.5 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map(user => (
+                      <tr key={user.id} className="border-b border-border/50 transition-colors hover:bg-surface-hover">
+                        <td className="px-4 py-3 font-display text-sm font-medium text-text-primary">
+                          {user.name || '—'}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-sm text-text-secondary">{user.email}</td>
+                        <td className="px-4 py-3">
+                          <UserRoleBadge role={user.role} />
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-text-muted">
+                          {user.createdAt ? format(new Date(user.createdAt), 'dd/MM/yyyy HH:mm') : '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          {currentUser?.role === 'owner' && user.role !== 'owner' ? (
+                            <select
+                              value={user.role}
+                              onChange={e => updateRole(user.id, e.target.value as UserRole)}
+                              disabled={updating === user.id}
+                              className={SELECT_CLS}
+                            >
+                              <option value="user">user</option>
+                              <option value="admin">admin</option>
+                              <option value="owner">owner</option>
+                            </select>
+                          ) : user.role === 'owner' ? (
+                            <span className="font-display text-xs text-text-muted">Propriétaire</span>
+                          ) : null}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </Card>
+        </div>
+      </AppShell>
     </AdminGuard>
   );
 }

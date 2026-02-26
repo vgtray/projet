@@ -2,19 +2,20 @@
 
 import { useEffect, useState } from 'react';
 import AdminGuard from '@/components/AdminGuard';
-import Header from '@/components/Header';
+import AppShell from '@/components/AppShell';
 import Card from '@/components/ui/Card';
-import { 
-  BarChart3, 
-  TrendingUp, 
-  DollarSign, 
-  Ratio,
-  CircleDot,
+import Link from 'next/link';
+import {
   Activity,
   Pause,
   Play,
   Users,
-  Settings
+  Settings,
+  TrendingUp,
+  Target,
+  BarChart3,
+  AlertTriangle,
+  Loader2,
 } from 'lucide-react';
 
 interface BotStatus {
@@ -42,6 +43,15 @@ const defaultStats: Stats = {
   trades_today_us100: 0,
 };
 
+function StatBlock({ label, value, color = 'text-text-primary' }: { label: string; value: string; color?: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-bg p-3">
+      <p className="font-display text-xs font-medium uppercase tracking-wider text-text-muted">{label}</p>
+      <p className={`mt-1 font-display text-xl font-bold ${color}`}>{value}</p>
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const [botStatus, setBotStatus] = useState<BotStatus>({ running: true, paused: false, pausedBy: null, pauseReason: null });
   const [stats, setStats] = useState<Stats>(defaultStats);
@@ -61,13 +71,8 @@ export default function AdminDashboard() {
   async function fetchBotStatus() {
     try {
       const res = await fetch('/api/bot');
-      if (res.ok) {
-        const data = await res.json();
-        setBotStatus(data);
-      }
-    } catch (e) {
-      console.error('Error fetching bot status:', e);
-    }
+      if (res.ok) setBotStatus(await res.json());
+    } catch { /* retry */ }
   }
 
   async function fetchStats() {
@@ -84,9 +89,7 @@ export default function AdminDashboard() {
           trades_today_us100: data.today?.US100 ?? 0,
         });
       }
-    } catch (e) {
-      console.error('Error fetching stats:', e);
-    }
+    } catch { /* retry */ }
   }
 
   async function handleBotAction(action: 'pause' | 'resume') {
@@ -98,131 +101,154 @@ export default function AdminDashboard() {
         body: JSON.stringify({ action, reason: action === 'pause' ? reason : null }),
       });
       if (res.ok) {
-        fetchBotStatus();
+        await fetchBotStatus();
         setReason('');
       }
-    } catch (e) {
-      console.error('Error:', e);
-    } finally {
-      setLoading(false);
-    }
+    } catch { /* retry */ }
+    finally { setLoading(false); }
   }
 
   const pnlSign = stats.total_pnl >= 0 ? '+' : '';
+  const pnlColor = stats.total_pnl >= 0 ? 'text-profit' : 'text-loss';
 
   return (
     <AdminGuard requiredRole="owner">
-      <Header />
-      <main className="mx-auto max-w-screen-2xl space-y-6 px-4 py-6 lg:px-6">
-        {/* Bot Control Panel */}
-        <Card title="Contrôle du Bot">
-          <div className="flex flex-col lg:flex-row gap-6">
-            <div className="flex items-center gap-4">
-              <div className={`flex items-center gap-2 ${botStatus.running ? 'text-emerald-400' : 'text-red-400'}`}>
-                <Activity className="h-5 w-5" />
-                <span className="font-medium">{botStatus.running ? 'En cours' : 'Arrêté'}</span>
-              </div>
-              {botStatus.paused && botStatus.pauseReason && (
-                <div className="text-sm text-zinc-400">
-                  Pause: {botStatus.pauseReason}
+      <AppShell>
+        <div className="space-y-5 p-4 lg:p-6">
+          {/* Header */}
+          <div>
+            <h1 className="font-display text-xl font-bold text-text-primary">Panneau Admin</h1>
+            <p className="mt-0.5 text-sm text-text-muted">Contrôle et supervision du bot</p>
+          </div>
+
+          {/* Bot Control */}
+          <Card title="Contrôle du Bot">
+            <div className="space-y-4">
+              {/* Status */}
+              <div className="flex items-center gap-3">
+                <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium ${
+                  botStatus.paused
+                    ? 'bg-warning/10 text-warning'
+                    : botStatus.running
+                    ? 'bg-profit/10 text-profit'
+                    : 'bg-loss/10 text-loss'
+                }`}>
+                  <Activity className="h-4 w-4" />
+                  {botStatus.paused ? 'En pause' : botStatus.running ? 'En cours d\'exécution' : 'Arrêté'}
                 </div>
-              )}
-            </div>
-            
-            <div className="flex flex-col sm:flex-row gap-3 ml-auto">
-              {botStatus.running ? (
-                <>
+                {botStatus.paused && botStatus.pauseReason && (
+                  <div className="flex items-center gap-1.5 text-sm text-text-muted">
+                    <AlertTriangle className="h-3.5 w-3.5 text-warning" />
+                    Pause: {botStatus.pauseReason}
+                  </div>
+                )}
+              </div>
+
+              {/* Controls */}
+              <div className="flex flex-wrap items-center gap-3">
+                {!botStatus.paused && (
                   <input
                     type="text"
-                    placeholder="Raison de la pause..."
+                    placeholder="Raison de la pause (optionnel)..."
                     value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white text-sm w-64"
+                    onChange={e => setReason(e.target.value)}
+                    className="flex-1 rounded-lg border border-border bg-bg px-3 py-2 font-display text-sm text-text-primary outline-none transition-colors focus:border-border-bright placeholder:text-text-muted min-w-48"
                   />
+                )}
+                {botStatus.paused ? (
+                  <button
+                    onClick={() => handleBotAction('resume')}
+                    disabled={loading}
+                    className="flex items-center gap-2 rounded-lg border border-profit/30 bg-profit/5 px-4 py-2 font-display text-sm font-medium text-profit transition-colors hover:bg-profit/15 disabled:opacity-50"
+                  >
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                    Reprendre le bot
+                  </button>
+                ) : (
                   <button
                     onClick={() => handleBotAction('pause')}
                     disabled={loading}
-                    className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-zinc-700 text-white rounded transition-colors"
+                    className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/5 px-4 py-2 font-display text-sm font-medium text-warning transition-colors hover:bg-warning/15 disabled:opacity-50"
                   >
-                    <Pause className="h-4 w-4" />
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pause className="h-4 w-4" />}
                     Mettre en pause
                   </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => handleBotAction('resume')}
-                  disabled={loading}
-                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-zinc-700 text-white rounded transition-colors"
-                >
-                  <Play className="h-4 w-4" />
-                  Reprendre
-                </button>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        </Card>
+          </Card>
 
-        {/* Stats */}
-        <Card className="p-4">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-            <div className="flex flex-col">
-              <span className="text-xs text-zinc-400 uppercase tracking-wider">Total Trades</span>
-              <span className="text-2xl font-bold text-white">{stats.total_trades}</span>
+          {/* Stats overview */}
+          <Card title="Statistiques globales">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              <StatBlock label="Total Trades" value={String(stats.total_trades)} />
+              <StatBlock
+                label="Win Rate"
+                value={`${stats.win_rate.toFixed(1)}%`}
+                color={stats.win_rate >= 50 ? 'text-profit' : 'text-loss'}
+              />
+              <StatBlock
+                label="Total PnL"
+                value={`${pnlSign}${stats.total_pnl.toFixed(2)} €`}
+                color={pnlColor}
+              />
+              <StatBlock label="Avg R:R" value={`${stats.avg_rr.toFixed(2)}R`} />
+              <StatBlock
+                label="XAUUSD Auj."
+                value={`${stats.trades_today_xauusd}/2`}
+                color={stats.trades_today_xauusd >= 2 ? 'text-loss' : 'text-text-primary'}
+              />
+              <StatBlock
+                label="US100 Auj."
+                value={`${stats.trades_today_us100}/2`}
+                color={stats.trades_today_us100 >= 2 ? 'text-loss' : 'text-text-primary'}
+              />
             </div>
-            <div className="flex flex-col">
-              <span className="text-xs text-zinc-400 uppercase tracking-wider">Win Rate</span>
-              <span className="text-2xl font-bold text-white">{stats.win_rate.toFixed(1)}%</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xs text-zinc-400 uppercase tracking-wider">Total PnL</span>
-              <span className={`text-2xl font-bold ${stats.total_pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {pnlSign}{stats.total_pnl.toFixed(2)} €
-              </span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xs text-zinc-400 uppercase tracking-wider">Avg RR</span>
-              <span className="text-2xl font-bold text-white">{stats.avg_rr.toFixed(2)}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xs text-zinc-400 uppercase tracking-wider">XAUUSD Today</span>
-              <span className="text-2xl font-bold text-white">{stats.trades_today_xauusd}/2</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xs text-zinc-400 uppercase tracking-wider">US100 Today</span>
-              <span className="text-2xl font-bold text-white">{stats.trades_today_us100}/2</span>
-            </div>
-          </div>
-        </Card>
+          </Card>
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <a
-            href="/admin/users"
-            className="flex items-center gap-4 p-4 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition-colors"
-          >
-            <div className="p-3 bg-blue-500/20 rounded-lg">
-              <Users className="h-6 w-6 text-blue-400" />
-            </div>
-            <div>
-              <h3 className="font-medium text-white">Gestion des Utilisateurs</h3>
-              <p className="text-sm text-zinc-400">Gérer les rôles et permissions</p>
-            </div>
-          </a>
-          
-          <a
-            href="/admin/settings"
-            className="flex items-center gap-4 p-4 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition-colors"
-          >
-            <div className="p-3 bg-purple-500/20 rounded-lg">
-              <Settings className="h-6 w-6 text-purple-400" />
-            </div>
-            <div>
-              <h3 className="font-medium text-white">Paramètres</h3>
-              <p className="text-sm text-zinc-400">Configuration du bot</p>
-            </div>
-          </a>
+          {/* Quick links */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Link
+              href="/admin/users"
+              className="flex items-center gap-4 rounded-xl border border-border bg-surface p-4 transition-all hover:border-border-bright hover:bg-surface-hover"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-info/10">
+                <Users className="h-5 w-5 text-info" />
+              </div>
+              <div>
+                <p className="font-display text-sm font-semibold text-text-primary">Utilisateurs</p>
+                <p className="text-xs text-text-muted">Rôles et permissions</p>
+              </div>
+            </Link>
+
+            <Link
+              href="/admin/settings"
+              className="flex items-center gap-4 rounded-xl border border-border bg-surface p-4 transition-all hover:border-border-bright hover:bg-surface-hover"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-warning/10">
+                <Settings className="h-5 w-5 text-warning" />
+              </div>
+              <div>
+                <p className="font-display text-sm font-semibold text-text-primary">Paramètres</p>
+                <p className="text-xs text-text-muted">Configuration du bot</p>
+              </div>
+            </Link>
+
+            <Link
+              href="/performance"
+              className="flex items-center gap-4 rounded-xl border border-border bg-surface p-4 transition-all hover:border-border-bright hover:bg-surface-hover"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-profit/10">
+                <TrendingUp className="h-5 w-5 text-profit" />
+              </div>
+              <div>
+                <p className="font-display text-sm font-semibold text-text-primary">Performance</p>
+                <p className="text-xs text-text-muted">Analytics avancés</p>
+              </div>
+            </Link>
+          </div>
         </div>
-      </main>
+      </AppShell>
     </AdminGuard>
   );
 }
