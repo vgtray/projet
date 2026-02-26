@@ -8,14 +8,14 @@ export async function GET() {
       // Daily PnL series (last 90 days)
       const dailyRes = await client.query(`
         SELECT
-          DATE(closed_at AT TIME ZONE 'Europe/Paris') AS date,
+          DATE(exit_time AT TIME ZONE 'Europe/Paris') AS date,
           SUM(pnl)::float AS pnl,
           COUNT(*) AS trades,
           SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) AS wins
         FROM trades
         WHERE status = 'closed'
-          AND closed_at >= NOW() - INTERVAL '90 days'
-        GROUP BY DATE(closed_at AT TIME ZONE 'Europe/Paris')
+          AND exit_time >= NOW() - INTERVAL '90 days'
+        GROUP BY DATE(exit_time AT TIME ZONE 'Europe/Paris')
         ORDER BY date ASC
       `);
 
@@ -55,7 +55,7 @@ export async function GET() {
       const bestWorstRes = await client.query(`
         SELECT
           id, asset, direction, entry_price::float, pnl::float,
-          closed_reason, entry_time, closed_at
+          closed_reason, entry_time, exit_time
         FROM trades
         WHERE status = 'closed' AND pnl IS NOT NULL
         ORDER BY pnl DESC
@@ -65,7 +65,7 @@ export async function GET() {
       const worstRes = await client.query(`
         SELECT
           id, asset, direction, entry_price::float, pnl::float,
-          closed_reason, entry_time, closed_at
+          closed_reason, entry_time, exit_time
         FROM trades
         WHERE status = 'closed' AND pnl IS NOT NULL
         ORDER BY pnl ASC

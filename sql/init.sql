@@ -141,7 +141,7 @@ CREATE INDEX IF NOT EXISTS "verification_identifier_idx" ON "verification"("iden
 -- User Roles Table
 CREATE TABLE IF NOT EXISTS user_roles (
     id SERIAL PRIMARY KEY,
-    user_id VARCHAR(255) NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    user_id VARCHAR(255) NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
     role VARCHAR(20) NOT NULL DEFAULT 'user',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(user_id)

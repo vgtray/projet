@@ -163,8 +163,8 @@ class Database:
         """Retourne True si un trade exécuté existe dans la fenêtre de déduplication.
 
         Vérifie deux conditions (OR) :
-        1. Même asset + direction dans les X dernières minutes (status='open')
-        2. Même asset + direction + sweep_level dans les X dernières minutes
+        1. Même asset + direction avec status='open' (n'importe quand)
+        2. Même asset + direction exécuté dans les X dernières minutes
         """
         sql_open_trade = """
             SELECT COUNT(*) FROM trades
