@@ -27,12 +27,12 @@ interface CurrencyProviderProps {
   children: ReactNode;
 }
 
-const EXCHANGE_RATE = 0.92;
+const FALLBACK_EXCHANGE_RATE = 0.92;
 
 export function CurrencyProvider({ children }: CurrencyProviderProps) {
   const [accountCurrency, setAccountCurrency] = useState<Currency>('USD');
   const [displayCurrency, setDisplayCurrencyState] = useState<DisplayCurrency>('USD');
-  const [rate, setRate] = useState(1);
+  const [rate, setRate] = useState(FALLBACK_EXCHANGE_RATE);
 
   useEffect(() => {
     async function fetchCurrency() {
@@ -57,13 +57,24 @@ export function CurrencyProvider({ children }: CurrencyProviderProps) {
   }, []);
 
   useEffect(() => {
-    if (displayCurrency === 'EUR' && accountCurrency === 'USD') {
-      setRate(EXCHANGE_RATE);
-    } else if (displayCurrency === 'USD' && accountCurrency === 'EUR') {
-      setRate(1 / EXCHANGE_RATE);
-    } else {
-      setRate(1);
+    async function fetchExchangeRate() {
+      if (displayCurrency === accountCurrency) {
+        setRate(1);
+        return;
+      }
+
+      try {
+        const res = await fetch('https://api.exchangerate.host/latest?base=USD&symbols=EUR');
+        const data = await res.json();
+        if (data.success !== false && data.rates?.EUR) {
+          setRate(data.rates.EUR);
+        }
+      } catch (e) {
+        console.error('Failed to fetch exchange rate, using fallback:', e);
+        setRate(FALLBACK_EXCHANGE_RATE);
+      }
     }
+    fetchExchangeRate();
   }, [displayCurrency, accountCurrency]);
 
   const setDisplayCurrency = (currency: DisplayCurrency) => {
