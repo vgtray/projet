@@ -185,9 +185,9 @@ class VolumeProfileAnalyzer:
                 volume = row.get("volume", row.get("tick_volume", 1))
                 
                 if body > 0:
-                    buy_vol += abs(body / (abs(df["body"]) + 1e-10)) * volume
+                    buy_vol += abs(body / (abs(body) + 1e-10)) * volume
                 else:
-                    sell_vol += abs(body / (abs(df["body"]) + 1e-10)) * volume
+                    sell_vol += abs(body / (abs(body) + 1e-10)) * volume
         
         total = buy_vol + sell_vol
         if total == 0:
