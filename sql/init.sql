@@ -151,3 +151,8 @@ CREATE INDEX IF NOT EXISTS idx_user_roles_user_id ON user_roles(user_id);
 -- Bot State Enhanced
 ALTER TABLE bot_state ADD COLUMN IF NOT EXISTS paused_by VARCHAR(255);
 ALTER TABLE bot_state ADD COLUMN IF NOT EXISTS pause_reason TEXT;
+
+-- Contrainte unicité : 1 seul trade ouvert par asset à la fois
+CREATE UNIQUE INDEX IF NOT EXISTS idx_trades_one_open_per_asset
+ON trades (asset)
+WHERE status = 'open';

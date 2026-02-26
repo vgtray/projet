@@ -160,19 +160,40 @@ class Database:
 
     def check_duplicate_trade(self, asset: str, direction: str,
                                window_minutes: int = 15) -> bool:
-        """Retourne True si un trade exécuté existe dans la fenêtre de déduplication."""
-        sql = """
+        """Retourne True si un trade exécuté existe dans la fenêtre de déduplication.
+
+        Vérifie deux conditions (OR) :
+        1. Même asset + direction dans les X dernières minutes (status='open')
+        2. Même asset + direction + sweep_level dans les X dernières minutes
+        """
+        sql_open_trade = """
             SELECT COUNT(*) FROM trades
             WHERE asset = %s
               AND direction = %s
               AND status = 'open'
-              AND entry_time > NOW() - (%s * INTERVAL '1 minute')
+        """
+        sql_dedup = """
+            SELECT COUNT(*) FROM signals
+            WHERE asset = %s
+              AND direction = %s
+              AND executed = TRUE
+              AND timestamp > NOW() - (%s * INTERVAL '1 minute')
         """
         try:
             with self.conn.cursor() as cur:
-                cur.execute(sql, (asset, direction, window_minutes))
+                cur.execute(sql_open_trade, (asset, direction))
                 row = cur.fetchone()
-                return row[0] > 0 if row else False
+                if row and row[0] > 0:
+                    logger.info("Duplicate détecté (trade ouvert même direction) — %s %s", asset, direction)
+                    return True
+
+                cur.execute(sql_dedup, (asset, direction, window_minutes))
+                row = cur.fetchone()
+                if row and row[0] > 0:
+                    logger.info("Duplicate détecté (signal exécuté récent) — %s %s", asset, direction)
+                    return True
+
+                return False
         except Exception as e:
             logger.error("Erreur vérification doublon trade : %s", e)
             return False

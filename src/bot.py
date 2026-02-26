@@ -183,6 +183,15 @@ class TradingBot:
             self.db.set_bot_state(f"last_analyzed_{asset}", last_ts)
             return
 
+        # 6b. Hard block: max 1 open position per asset at a time
+        open_trades = self.db.get_open_trades()
+        open_assets = [t["asset"] for t in open_trades]
+        if asset in open_assets:
+            logger.info("Position déjà ouverte sur %s — skip exécution", asset)
+            self._last_analyzed[asset] = last_ts
+            self.db.set_bot_state(f"last_analyzed_{asset}", last_ts)
+            return
+
         # 7. Niveaux clés (besoin de plus de bougies pour Asia/London/PrevDay)
         candles_extended = self.mt5.get_candles(asset, "M5", 500)
         if candles_extended is None or candles_extended.empty:
