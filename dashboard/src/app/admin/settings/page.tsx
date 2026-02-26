@@ -32,8 +32,8 @@ const settings: { section: string; icon: React.ReactNode; items: SettingItem[] }
     section: 'Gestion du risque',
     icon: <Shield className="h-4 w-4" />,
     items: [
-      { label: 'Risque par trade', value: '1%', description: 'Du capital total' },
-      { label: 'Max trades / jour / asset', value: '2', description: 'Protection contre le surtrading' },
+      { label: 'Risque par trade', value: '2%', description: 'Du capital total' },
+      { label: 'Max trades / jour / asset', value: '5', description: 'Protection contre le surtrading' },
       { label: 'Fenêtre déduplication', value: '15 min', description: 'Délai minimum entre 2 trades identiques' },
     ],
   },
