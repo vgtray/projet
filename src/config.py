@@ -20,7 +20,7 @@ class Config:
     TIMEFRAME = "M5"
 
     # --- Risque ---
-    RISK_PERCENT = 0.01
+    RISK_PERCENT = 0.02
     MAX_TRADES_PER_DAY = 5
 
     # --- Timezone ---
