@@ -1,11 +1,14 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import Header from '@/components/Header';
+import AppShell from '@/components/AppShell';
 import StatsBar from '@/components/StatsBar';
 import Card from '@/components/ui/Card';
 import TradeRow from '@/components/TradeRow';
 import SignalRow from '@/components/SignalRow';
+import EmptyState from '@/components/ui/EmptyState';
+import { SkeletonRow } from '@/components/ui/Skeleton';
+import { Briefcase, History, Radio, RefreshCw } from 'lucide-react';
 
 interface Trade {
   id: number;
@@ -33,10 +36,30 @@ interface Signal {
   reason: string | null;
 }
 
+const TRADE_HEADERS = ['Asset / Heure', 'Direction', 'Entry', 'SL', 'TP', 'Lot', 'PnL', 'Status', 'Action'];
+const SIGNAL_HEADERS = ['Asset / Heure', 'Direction', 'Scénario', 'Confiance', 'Valide', 'Confluences', 'Sweep', 'Raison'];
+
+function TableHeader({ headers }: { headers: string[] }) {
+  return (
+    <thead>
+      <tr className="border-b border-border">
+        {headers.map(h => (
+          <th key={h} className="px-4 py-2.5 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">
+            {h}
+          </th>
+        ))}
+      </tr>
+    </thead>
+  );
+}
+
 export default function DashboardPage() {
   const [openTrades, setOpenTrades] = useState<Trade[]>([]);
   const [closedTrades, setClosedTrades] = useState<Trade[]>([]);
   const [signals, setSignals] = useState<Signal[]>([]);
+  const [loadingOpen, setLoadingOpen] = useState(true);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   const fetchOpenTrades = useCallback(async () => {
     try {
@@ -46,6 +69,7 @@ export default function DashboardPage() {
         setOpenTrades(data.trades ?? []);
       }
     } catch { /* retry next interval */ }
+    finally { setLoadingOpen(false); }
   }, []);
 
   const fetchClosedTrades = useCallback(async () => {
@@ -56,6 +80,7 @@ export default function DashboardPage() {
         setClosedTrades(data.trades ?? []);
       }
     } catch { /* retry next interval */ }
+    finally { setLoadingHistory(false); }
   }, []);
 
   const fetchSignals = useCallback(async () => {
@@ -69,29 +94,22 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    fetchOpenTrades();
+    const interval = setInterval(() => {
       fetchOpenTrades();
-    }, 0);
-    const interval = setInterval(fetchOpenTrades, 10_000);
-    return () => {
-      clearTimeout(timer);
-      clearInterval(interval);
-    };
+      setLastRefresh(new Date());
+    }, 10_000);
+    return () => clearInterval(interval);
   }, [fetchOpenTrades]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchClosedTrades();
-      fetchSignals();
-    }, 0);
+    fetchClosedTrades();
+    fetchSignals();
     const interval = setInterval(() => {
       fetchClosedTrades();
       fetchSignals();
     }, 30_000);
-    return () => {
-      clearTimeout(timer);
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, [fetchClosedTrades, fetchSignals]);
 
   function handleClose() {
@@ -99,116 +117,141 @@ export default function DashboardPage() {
     fetchClosedTrades();
   }
 
+  const refreshLabel = lastRefresh.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
   return (
-    <>
-      <Header />
-      <main className="mx-auto max-w-screen-2xl space-y-6 px-4 py-6 lg:px-6">
+    <AppShell>
+      <div className="space-y-5 p-4 lg:p-6">
+        {/* Page header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="font-display text-xl font-bold text-text-primary">Dashboard</h1>
+            <p className="mt-0.5 text-sm text-text-muted">Vue d&apos;ensemble du bot en temps réel</p>
+          </div>
+          <div className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5">
+            <RefreshCw className="h-3 w-3 text-text-muted" />
+            <span className="font-mono text-xs text-text-muted">{refreshLabel}</span>
+          </div>
+        </div>
+
+        {/* Stats & Charts */}
         <StatsBar />
 
-        {/* Trades ouverts */}
-        <section>
-          <Card title="Trades ouverts">
-            {openTrades.length === 0 ? (
-              <p className="py-8 text-center font-display text-sm text-text-muted">
-                Aucun trade ouvert
-              </p>
+        {/* Open Trades */}
+        <Card
+          title="Trades ouverts"
+          noPadding
+          headerRight={
+            openTrades.length > 0 ? (
+              <span className="rounded-full bg-info/10 px-2 py-0.5 font-mono text-xs font-medium text-info">
+                {openTrades.length}
+              </span>
+            ) : null
+          }
+        >
+          <div className="overflow-x-auto">
+            {loadingOpen ? (
+              <table className="w-full min-w-[700px]">
+                <TableHeader headers={TRADE_HEADERS} />
+                <tbody>
+                  <SkeletonRow cols={9} />
+                  <SkeletonRow cols={9} />
+                </tbody>
+              </table>
+            ) : openTrades.length === 0 ? (
+              <EmptyState
+                icon={Briefcase}
+                title="Aucun trade ouvert"
+                description="Les trades en cours apparaîtront ici"
+                className="py-10"
+              />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[900px]">
-                  <thead>
-                    <tr className="border-b border-border-bright">
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Asset</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Direction</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Entry</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">SL</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">TP</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Lot</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">PnL</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Status</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Heure</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Action</th>
-                    </tr>
-                  </thead>
+              <table className="w-full min-w-[700px]">
+                <TableHeader headers={TRADE_HEADERS} />
+                <tbody>
+                  {openTrades.map(trade => (
+                    <TradeRow key={trade.id} trade={trade} onClose={handleClose} />
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </Card>
+
+        {/* Bottom row: History + Signals side by side on large screens */}
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-5">
+          {/* Closed trades history (3/5) */}
+          <Card
+            title="Historique récent"
+            subtitle="25 derniers trades"
+            noPadding
+            className="xl:col-span-3"
+          >
+            <div className="overflow-x-auto">
+              {loadingHistory ? (
+                <table className="w-full min-w-[600px]">
+                  <TableHeader headers={TRADE_HEADERS} />
                   <tbody>
-                    {openTrades.map((trade) => (
-                      <TradeRow key={trade.id} trade={trade} onClose={handleClose} />
-                    ))}
+                    {[...Array(4)].map((_, i) => <SkeletonRow key={i} cols={9} />)}
                   </tbody>
                 </table>
-              </div>
-            )}
-          </Card>
-        </section>
-
-        {/* Historique récent */}
-        <section>
-          <Card title="Historique récent (25 derniers)">
-            {closedTrades.length === 0 ? (
-              <p className="py-8 text-center font-display text-sm text-text-muted">
-                Aucun trade dans l&apos;historique
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[900px]">
-                  <thead>
-                    <tr className="border-b border-border-bright">
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Asset</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Direction</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Entry</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">SL</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">TP</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Lot</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">PnL</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Status</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Heure</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Action</th>
-                    </tr>
-                  </thead>
+              ) : closedTrades.length === 0 ? (
+                <EmptyState
+                  icon={History}
+                  title="Aucun trade dans l'historique"
+                  description="Les trades clôturés apparaîtront ici"
+                  className="py-10"
+                />
+              ) : (
+                <table className="w-full min-w-[600px]">
+                  <TableHeader headers={TRADE_HEADERS} />
                   <tbody>
-                    {closedTrades.map((trade) => (
+                    {closedTrades.map(trade => (
                       <TradeRow key={trade.id} trade={trade} />
                     ))}
                   </tbody>
                 </table>
-              </div>
-            )}
+              )}
+            </div>
           </Card>
-        </section>
 
-        {/* Derniers signaux */}
-        <section>
-          <Card title="Derniers signaux (10 derniers)">
-            {signals.length === 0 ? (
-              <p className="py-8 text-center font-display text-sm text-text-muted">
-                Aucun signal reçu
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[1000px]">
+          {/* Recent signals (2/5) */}
+          <Card
+            title="Derniers signaux"
+            subtitle="10 derniers"
+            noPadding
+            className="xl:col-span-2"
+          >
+            <div className="overflow-x-auto">
+              {signals.length === 0 ? (
+                <EmptyState
+                  icon={Radio}
+                  title="Aucun signal reçu"
+                  description="Les signaux IA apparaîtront ici"
+                  className="py-10"
+                />
+              ) : (
+                <table className="w-full min-w-[500px]">
                   <thead>
-                    <tr className="border-b border-border-bright">
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Heure</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Asset</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Direction</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Scénario</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Confiance</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Valide</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Confluences</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Sweep</th>
-                      <th className="px-3 py-2 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">Raison</th>
+                    <tr className="border-b border-border">
+                      {['Asset', 'Dir.', 'Confiance', 'Valide', 'Confluences'].map(h => (
+                        <th key={h} className="px-4 py-2.5 text-left font-display text-xs font-semibold uppercase tracking-wider text-text-muted">
+                          {h}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {signals.map((signal) => (
-                      <SignalRow key={signal.id} signal={signal} />
+                    {signals.map(signal => (
+                      <SignalRow key={signal.id} signal={signal} compact />
                     ))}
                   </tbody>
                 </table>
-              </div>
-            )}
+              )}
+            </div>
           </Card>
-        </section>
-      </main>
-    </>
+        </div>
+      </div>
+    </AppShell>
   );
 }
