@@ -193,6 +193,7 @@ export default function PerformancePage() {
             ))}
           </div>
         </div>
+        </div>
 
         {loading ? (
           <div className="space-y-4">
