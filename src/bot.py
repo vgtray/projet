@@ -512,7 +512,7 @@ class TradingBot:
             try:
                 entry_time_raw = trade.get("entry_time")
                 exit_price, pnl = self._get_closed_trade_details(
-                    asset, entry_price, direction, mt5_ticket, entry_time_raw
+                    asset, entry_price, direction, mt5_ticket=mt5_ticket
                 )
             except Exception as e:
                 logger.error("Erreur récupération détails trade fermé id=%s : %s", trade_id, e)
@@ -550,11 +550,12 @@ class TradingBot:
 
             # 4. Déterminer la raison de fermeture
             pnl_final = float(pnl) if pnl is not None else 0.0
-            if not deal_found_in_history:
-                # On ne sait pas si c'est TP/SL/manuel depuis MT5 — marquer "manual"
-                closed_reason = "manual"
+            if tp_price and exit_price and abs(exit_price - tp_price) < 2:
+                closed_reason = "tp"
+            elif sl_price and exit_price and abs(exit_price - sl_price) < 2:
+                closed_reason = "sl"
             else:
-                closed_reason = "tp" if pnl_final > 0 else "sl"
+                closed_reason = "manual"
 
             # 5. Mettre à jour le trade en DB
             now_paris = datetime.now(PARIS_TZ)
@@ -604,85 +605,37 @@ class TradingBot:
             )
 
     def _get_closed_trade_details(
-        self, asset: str, entry_price: float, direction: str,
-        mt5_ticket: Optional[int] = None,
-        entry_time: Optional[datetime] = None,
+        self, asset: str, entry_price: float, direction: str, mt5_ticket: int = None
     ) -> tuple:
-        """Récupère le prix de sortie et le PnL d'un trade fermé via l'historique MT5.
+        """Récupère le prix de sortie et le PnL réel depuis l'historique MT5.
 
-        Args:
-            asset: Symbole de l'asset.
-            entry_price: Prix d'entrée du trade.
-            direction: Direction du trade ("long" ou "short").
-            mt5_ticket: Ticket MT5 (order ticket) pour matching par position_id.
-            entry_time: Heure d'entrée du trade pour affiner la recherche.
-
-        Returns:
-            Tuple (exit_price, pnl) ou (None, None) si non trouvé.
+        Utilise deal.profit directement — jamais de calcul manuel.
         """
         if not self.mt5.is_connected():
             return None, None
 
         try:
             now = datetime.now(PARIS_TZ)
-            # Chercher depuis l'entrée du trade ou 7 jours max pour couvrir les anciens trades
-            if entry_time:
-                # Assurer que entry_time est timezone-aware
-                if entry_time.tzinfo is None:
-                    entry_time = PARIS_TZ.localize(entry_time)
-                from_date = entry_time - timedelta(minutes=5)  # petite marge
-            else:
-                from_date = now - timedelta(days=7)
+            from_date = now - timedelta(days=2)
 
             deals = self.mt5.get_history_deals(from_date, now)
             if not deals:
-                logger.warning("Aucun deal MT5 trouvé entre %s et %s", from_date, now)
                 return None, None
 
-            logger.debug("Recherche deal fermé parmi %d deals (ticket=%s, asset=%s)",
-                         len(deals), mt5_ticket, asset)
-
-            # Passe 1 : matching précis par position_id (= ticket de la position ouverte)
-            if mt5_ticket:
-                for deal in reversed(deals):
-                    # Filtrer par magic number
-                    deal_magic = getattr(deal, "magic", None)
-                    if deal_magic != Config.BOT_MAGIC:
-                        continue
-                    # entry : 0=in, 1=out, 2=reversal — vérifier les deux formes (int ou enum)
-                    deal_entry = getattr(deal, "entry", None)
-                    deal_entry_val = int(deal_entry) if deal_entry is not None else -1
-                    if deal_entry_val != 1:
-                        continue
-                    # position_id dans l'historique = ticket de la position (= order ticket à l'ouverture)
-                    deal_pos_id = getattr(deal, "position_id", None)
-                    if deal_pos_id is not None and int(deal_pos_id) == int(mt5_ticket):
-                        logger.info("Deal fermé trouvé par position_id=%s : price=%.5f profit=%.2f",
-                                    mt5_ticket, deal.price, deal.profit)
-                        return float(deal.price), float(deal.profit)
-
-            # Passe 2 : fallback par tolérance de prix (0.5% du prix d'entrée)
-            tolerance = entry_price * 0.005
             for deal in reversed(deals):
-                deal_magic = getattr(deal, "magic", None)
-                if deal_magic != Config.BOT_MAGIC:
+                if deal.entry != 1:
                     continue
-                deal_entry = getattr(deal, "entry", None)
-                deal_entry_val = int(deal_entry) if deal_entry is not None else -1
-                if deal_entry_val != 1:
-                    continue
-                if abs(float(deal.price) - entry_price) <= tolerance:
-                    logger.info("Deal fermé trouvé par tolérance prix (%.5f ≈ %.5f) : profit=%.2f",
-                                deal.price, entry_price, deal.profit)
-                    return float(deal.price), float(deal.profit)
+                if mt5_ticket and hasattr(deal, 'position_id'):
+                    if deal.position_id != mt5_ticket:
+                        continue
+                else:
+                    if abs(deal.price - entry_price) > 2:
+                        continue
 
-            logger.warning(
-                "Aucun deal de fermeture trouvé pour ticket=%s asset=%s entry=%.5f "
-                "(magic=%s, %d deals analysés)",
-                mt5_ticket, asset, entry_price, Config.BOT_MAGIC, len(deals)
-            )
+                return float(deal.price), float(deal.profit)
+
             return None, None
 
         except Exception as e:
-            logger.error("Erreur history_deals_get : %s", e, exc_info=True)
+            logger.error("Erreur _get_closed_trade_details : %s", e)
             return None, None
