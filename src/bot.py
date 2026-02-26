@@ -267,12 +267,12 @@ class TradingBot:
         ema_data = indicators.get("ema", {})
         macd_data = indicators.get("macd", {})
 
-        # Early exit: pas de setup SMC valide sans sweep OU confluences
+        # Early exit: pas de setup SMC valide sans sweep
+        # On n'appelle le LLM que si un sweep est détecté (le setup SMC le plus important)
         has_sweep = sweep_info and sweep_info.get("level") not in (None, "none")
-        has_confluence = bool(confluences_flat)
         
-        if not has_sweep and not has_confluence:
-            logger.info("Pas de setup SMC pour %s — pas de sweep ni confluences, skip LLM", asset)
+        if not has_sweep:
+            logger.info("Pas de sweep pour %s — skip LLM", asset)
             self._last_analyzed[asset] = last_ts
             self.db.set_bot_state(f"last_analyzed_{asset}", last_ts)
             return
