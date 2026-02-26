@@ -6,6 +6,7 @@ import Card from '@/components/ui/Card';
 import EmptyState from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import Badge from '@/components/ui/Badge';
+import { useConvertCurrency, CurrencyToggle } from '@/components/CurrencyToggle';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell, Legend,
@@ -64,18 +65,21 @@ function fmtDate(dateStr: string) {
   return d.toLocaleDateString('fr-FR', { month: 'short', day: 'numeric' });
 }
 
-function fmtPnL(v: number) {
-  return `${v >= 0 ? '+' : ''}${v.toFixed(2)} €`;
+function fmtPnL(v: number, convertFn?: (n: number) => number, sym?: string) {
+  const converted = convertFn ? convertFn(v) : v;
+  const s = sym ?? '€';
+  return `${converted >= 0 ? '+' : ''}${converted.toFixed(2)} ${s}`;
 }
 
 const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{value: number; name: string; color: string}>; label?: string }) => {
+  const { convert, symbol } = useConvertCurrency();
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-lg border border-border bg-surface px-3 py-2 shadow-xl">
       <p className="mb-1 font-display text-xs text-text-muted">{label}</p>
       {payload.map(p => (
         <p key={p.name} className="font-mono text-xs font-medium" style={{ color: p.color }}>
-          {p.name}: {typeof p.value === 'number' && p.name.toLowerCase().includes('pnl') ? fmtPnL(p.value) : p.value}
+          {p.name}: {typeof p.value === 'number' && p.name.toLowerCase().includes('pnl') ? fmtPnL(p.value, convert, symbol) : p.value}
         </p>
       ))}
     </div>
@@ -83,6 +87,7 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 };
 
 function TradeCard({ trade, type }: { trade: Trade; type: 'best' | 'worst' }) {
+  const { convert, symbol } = useConvertCurrency();
   const isProfit = trade.pnl >= 0;
   return (
     <div className="rounded-lg border border-border bg-bg p-4 space-y-2">
@@ -107,7 +112,7 @@ function TradeCard({ trade, type }: { trade: Trade; type: 'best' | 'worst' }) {
           <p className="font-mono text-xs text-text-muted">{fmtDate(trade.entry_time)}</p>
         </div>
         <span className={`font-mono text-lg font-bold ${isProfit ? 'text-profit' : 'text-loss'}`}>
-          {fmtPnL(trade.pnl)}
+          {fmtPnL(trade.pnl, convert, symbol)}
         </span>
       </div>
     </div>
@@ -124,6 +129,9 @@ export default function PerformancePage() {
   const [data, setData] = useState<PerfData | null>(null);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<Range>('30');
+  const { convert, symbol } = useConvertCurrency();
+
+  const chartFormatter = (v: number) => `${convert(v)}${symbol}`;
 
   useEffect(() => {
     fetch('/api/performance')
@@ -132,6 +140,10 @@ export default function PerformancePage() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const fmtPnLValue = (v: number) => {
+    return fmtPnL(v, convert, symbol);
+  };
 
   const rangeN = parseInt(range);
   const filteredDaily = (data?.daily_pnl ?? []).slice(-rangeN);
@@ -142,8 +154,8 @@ export default function PerformancePage() {
     cum += d.pnl;
     return {
       date: fmtDate(d.date),
-      PnL: d.pnl,
-      'PnL Cumulé': Math.round(cum * 100) / 100,
+      PnL: convert(d.pnl),
+      'PnL Cumulé': Math.round(convert(cum) * 100) / 100,
       Trades: d.trades,
     };
   });
@@ -162,7 +174,9 @@ export default function PerformancePage() {
             <h1 className="font-display text-xl font-bold text-text-primary">Performance</h1>
             <p className="mt-0.5 text-sm text-text-muted">Analyse détaillée des résultats du bot</p>
           </div>
-          {/* Range selector */}
+          <div className="flex items-center gap-3">
+            <CurrencyToggle />
+            {/* Range selector */}
           <div className="flex items-center rounded-lg border border-border bg-surface p-1 gap-1">
             {RANGE_BTNS.map(btn => (
               <button
@@ -203,7 +217,7 @@ export default function PerformancePage() {
             <Card title="Courbe de PnL cumulé" subtitle={`${filteredDaily.length} jours`}
               headerRight={
                 <span className={`font-mono text-lg font-bold ${totalCum >= 0 ? 'text-profit' : 'text-loss'}`}>
-                  {fmtPnL(totalCum)}
+                  {fmtPnLValue(totalCum)}
                 </span>
               }
             >
@@ -227,7 +241,7 @@ export default function PerformancePage() {
                     tick={{ fill: '#52525b', fontSize: 11, fontFamily: 'JetBrains Mono' }}
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={v => `${v}€`}
+                    tickFormatter={chartFormatter}
                   />
                   <Tooltip content={<CustomTooltip />} />
                   <Area
@@ -257,12 +271,12 @@ export default function PerformancePage() {
                       tickLine={false}
                       interval="preserveStartEnd"
                     />
-                    <YAxis
-                      tick={{ fill: '#52525b', fontSize: 10, fontFamily: 'JetBrains Mono' }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={v => `${v}€`}
-                    />
+                      <YAxis
+                        tick={{ fill: '#52525b', fontSize: 10, fontFamily: 'JetBrains Mono' }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={chartFormatter}
+                      />
                     <Tooltip content={<CustomTooltip />} />
                     <Bar dataKey="PnL" radius={[3, 3, 0, 0]}>
                       {chartData.map((entry, i) => (
@@ -291,7 +305,7 @@ export default function PerformancePage() {
                         tick={{ fill: '#52525b', fontSize: 10, fontFamily: 'JetBrains Mono' }}
                         axisLine={false}
                         tickLine={false}
-                        tickFormatter={v => `${v}€`}
+                        tickFormatter={chartFormatter}
                       />
                       <Tooltip content={<CustomTooltip />} />
                       <Bar dataKey="total_pnl" name="PnL" radius={[4, 4, 0, 0]}>

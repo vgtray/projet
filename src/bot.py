@@ -64,6 +64,11 @@ class TradingBot:
             self.db.disconnect()
             return
 
+        account_info = self.mt5.get_account_info()
+        if account_info and account_info.get("currency"):
+            self.db.set_bot_state("account_currency", account_info["currency"])
+            logger.info("Compte MT5 : %s %s", account_info["balance"], account_info["currency"])
+
         self._load_state()
         self.running = True
 

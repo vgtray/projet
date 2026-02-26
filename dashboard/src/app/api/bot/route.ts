@@ -60,6 +60,17 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
+    const { searchParams } = new URL(req.url);
+    const type = searchParams.get('type');
+
+    if (type === 'account') {
+      const currencyResult = await pool.query(
+        "SELECT value FROM bot_state WHERE key = 'account_currency'"
+      );
+      const currency = currencyResult.rows.length > 0 ? currencyResult.rows[0].value : 'USD';
+      return NextResponse.json({ currency });
+    }
+
     const result = await pool.query(
       "SELECT value, paused_by, pause_reason FROM bot_state WHERE key = 'bot_paused'"
     );

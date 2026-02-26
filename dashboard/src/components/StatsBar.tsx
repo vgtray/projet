@@ -15,6 +15,7 @@ import {
   Legend,
 } from 'recharts';
 import { TrendingUp, TrendingDown, Activity, BarChart3, Target, Zap } from 'lucide-react';
+import { useConvertCurrency } from './CurrencyToggle';
 
 interface DailyPnL {
   date: string;
@@ -160,8 +161,11 @@ export default function StatsBar() {
     return () => clearInterval(interval);
   }, []);
 
+  const { convert, format, symbol, displayCurrency } = useConvertCurrency();
   const pnlSign = stats.total_pnl >= 0 ? '+' : '';
   const pnlColor = stats.total_pnl >= 0 ? 'text-profit' : 'text-loss';
+  const convertedPnl = convert(stats.total_pnl);
+  const convertedDd = convert(Math.abs(stats.max_drawdown));
 
   const chartData = stats.daily_pnl.map(d => ({
     date: formatDate(d.date),
@@ -184,10 +188,10 @@ export default function StatsBar() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiCard
           label="Total PnL"
-          value={`${pnlSign}${stats.total_pnl.toFixed(2)} €`}
+          value={`${pnlSign}${convertedPnl.toFixed(2)} ${symbol}`}
           icon={stats.total_pnl >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
           valueColor={pnlColor}
-          sub={`Max DD: ${Math.abs(stats.max_drawdown).toFixed(2)} €`}
+          sub={`Max DD: ${convertedDd.toFixed(2)} ${symbol}`}
         />
         <KpiCard
           label="Win Rate"
@@ -228,7 +232,7 @@ export default function StatsBar() {
           <div className="border-t border-border pt-3 space-y-2">
             <div className="flex justify-between">
               <span className="font-display text-xs text-text-muted">Max Drawdown</span>
-              <span className="font-mono text-xs text-loss">-{Math.abs(stats.max_drawdown).toFixed(2)} €</span>
+              <span className="font-mono text-xs text-loss">-{convertedDd.toFixed(2)} {symbol}</span>
             </div>
             <div className="flex justify-between">
               <span className="font-display text-xs text-text-muted">Avg R:R</span>

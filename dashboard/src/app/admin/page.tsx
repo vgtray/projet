@@ -5,6 +5,7 @@ import AdminGuard from '@/components/AdminGuard';
 import AppShell from '@/components/AppShell';
 import Card from '@/components/ui/Card';
 import Link from 'next/link';
+import { useConvertCurrency, CurrencyToggle } from '@/components/CurrencyToggle';
 import {
   Activity,
   Pause,
@@ -57,6 +58,7 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats>(defaultStats);
   const [loading, setLoading] = useState(false);
   const [reason, setReason] = useState('');
+  const { convert, symbol } = useConvertCurrency();
 
   useEffect(() => {
     fetchBotStatus();
@@ -116,9 +118,12 @@ export default function AdminDashboard() {
       <AppShell>
         <div className="space-y-5 p-4 lg:p-6">
           {/* Header */}
-          <div>
-            <h1 className="font-display text-xl font-bold text-text-primary">Panneau Admin</h1>
-            <p className="mt-0.5 text-sm text-text-muted">Contrôle et supervision du bot</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="font-display text-xl font-bold text-text-primary">Panneau Admin</h1>
+              <p className="mt-0.5 text-sm text-text-muted">Contrôle et supervision du bot</p>
+            </div>
+            <CurrencyToggle />
           </div>
 
           {/* Bot Control */}
@@ -189,7 +194,7 @@ export default function AdminDashboard() {
               />
               <StatBlock
                 label="Total PnL"
-                value={`${pnlSign}${stats.total_pnl.toFixed(2)} €`}
+                value={`${pnlSign}${convert(stats.total_pnl).toFixed(2)} ${symbol}`}
                 color={pnlColor}
               />
               <StatBlock label="Avg R:R" value={`${stats.avg_rr.toFixed(2)}R`} />

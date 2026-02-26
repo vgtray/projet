@@ -3,6 +3,7 @@ import { JetBrains_Mono, DM_Sans, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
 import { ToastProvider } from "@/components/Toast";
+import { CurrencyProvider } from "@/components/CurrencyProvider";
 
 const dmSans = DM_Sans({
   variable: "--font-sans",
@@ -38,7 +39,9 @@ export default function RootLayout({
         className={`${dmSans.variable} ${jetbrainsMono.variable} ${spaceGrotesk.variable} antialiased`}
       >
         <AuthProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <CurrencyProvider>
+            <ToastProvider>{children}</ToastProvider>
+          </CurrencyProvider>
         </AuthProvider>
       </body>
     </html>
