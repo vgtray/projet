@@ -60,6 +60,12 @@ export default function DashboardPage() {
   const [loadingOpen, setLoadingOpen] = useState(true);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const fetchOpenTrades = useCallback(async () => {
     try {
@@ -117,7 +123,7 @@ export default function DashboardPage() {
     fetchClosedTrades();
   }
 
-  const refreshLabel = lastRefresh.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const refreshLabel = currentTime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
   return (
     <AppShell>
