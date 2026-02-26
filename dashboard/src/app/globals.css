@@ -1,5 +1,37 @@
 @import "tailwindcss";
 
+/* Tremor color tokens for dark theme */
+:root {
+  --tremor-background: #12121a;
+  --tremor-background-muted: #1a1a26;
+  --tremor-border: #1e1e2e;
+  --tremor-ring: #2a2a3e;
+  --tremor-content: #e4e4e7;
+  --tremor-content-subtle: #71717a;
+  --tremor-content-emphasis: #ffffff;
+  --tremor-brand-faint: #022c22;
+  --tremor-brand-muted: #064e3b;
+  --tremor-brand-subtle: #065f46;
+  --tremor-brand: #22c55e;
+  --tremor-brand-emphasis: #4ade80;
+  --tremor-brand-contrast: #000000;
+  --tremor-danger: #ef4444;
+  --tremor-danger-muted: #991b1b;
+  --tremor-danger-subtle: #b91c1c;
+  --tremor-danger-emphasis: #f87171;
+  --tremor-danger-contrast: #000000;
+  --tremor-warning: #eab308;
+  --tremor-warning-muted: #713f12;
+  --tremor-warning-subtle: #854d0e;
+  --tremor-warning-emphasis: #facc15;
+  --tremor-warning-contrast: #000000;
+  --tremor-success: #22c55e;
+  --tremor-success-muted: #166534;
+  --tremor-success-subtle: #15803d;
+  --tremor-success-emphasis: #4ade80;
+  --tremor-success-contrast: #000000;
+}
+
 @keyframes slide-in {
   from {
     transform: translateX(100%);
