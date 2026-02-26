@@ -21,7 +21,7 @@ class Config:
 
     # --- Risque ---
     RISK_PERCENT = 0.01
-    MAX_TRADES_PER_DAY = 2
+    MAX_TRADES_PER_DAY = 5
 
     # --- Timezone ---
     TIMEZONE = "Europe/Paris"
