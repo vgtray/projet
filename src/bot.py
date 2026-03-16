@@ -267,15 +267,10 @@ class TradingBot:
         ema_data = indicators.get("ema", {})
         macd_data = indicators.get("macd", {})
 
-        # Early exit: pas de setup SMC valide sans sweep
-        # On n'appelle le LLM que si un sweep est détecté (le setup SMC le plus important)
+        # Info sweep (le LLM décide lui-même si le setup est valide)
         has_sweep = sweep_info and sweep_info.get("level") not in (None, "none")
-        
         if not has_sweep:
-            logger.info("Pas de sweep pour %s — skip LLM", asset)
-            self._last_analyzed[asset] = last_ts
-            self.db.set_bot_state(f"last_analyzed_{asset}", last_ts)
-            return
+            logger.info("Pas de sweep détecté pour %s — le LLM évaluera quand même le setup", asset)
 
         # Early exit: max trades déjà atteint
         if daily_count >= Config.MAX_TRADES_PER_DAY:
@@ -656,14 +651,19 @@ class TradingBot:
             for deal in reversed(deals):
                 if deal.entry != 1:
                     continue
-                if mt5_ticket and hasattr(deal, 'position_id'):
-                    if deal.position_id != mt5_ticket:
-                        continue
+                if mt5_ticket:
+                    # Matcher sur position_id OU order (selon broker)
+                    deal_position_id = getattr(deal, 'position_id', None)
+                    deal_order = getattr(deal, 'order', None)
+                    if deal_position_id == mt5_ticket or deal_order == mt5_ticket:
+                        return float(deal.price), float(deal.profit)
+                    # Aucun match sur ticket — continuer
+                    continue
                 else:
-                    if abs(deal.price - entry_price) > 2:
+                    # Fallback sans ticket : matching par prix (tolérance 10 pour XAUUSD)
+                    if abs(deal.price - entry_price) > 10:
                         continue
-
-                return float(deal.price), float(deal.profit)
+                    return float(deal.price), float(deal.profit)
 
             return None, None
 

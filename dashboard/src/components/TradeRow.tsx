@@ -50,7 +50,11 @@ export default function TradeRow({ trade, onClose }: TradeRowProps) {
     if (closing) return;
     setClosing(true);
     try {
-      await fetch(`/api/trades/${trade.id}/close`, { method: 'POST' });
+      const closeRes = await fetch(`/api/trades/${trade.id}/close`, { method: 'POST' });
+      if (!closeRes.ok) {
+        setClosing(false);
+        return;
+      }
       let attempts = 0;
       const poll = setInterval(async () => {
         attempts++;
@@ -59,15 +63,15 @@ export default function TradeRow({ trade, onClose }: TradeRowProps) {
           if (res.ok) {
             const data = await res.json();
             const stillOpen = (data.trades ?? []).some((t: { id: number }) => t.id === trade.id);
-            if (!stillOpen || attempts >= 10) {
+            if (!stillOpen || attempts >= 15) {
               clearInterval(poll);
               onClose?.();
             }
           }
         } catch {
-          if (attempts >= 10) {
+          if (attempts >= 15) {
             clearInterval(poll);
-            setClosing(false);
+            onClose?.();
           }
         }
       }, 2000);

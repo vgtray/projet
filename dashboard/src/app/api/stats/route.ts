@@ -15,11 +15,11 @@ export async function GET() {
         SELECT
           COUNT(*)::int AS total_trades,
           COUNT(*) FILTER (WHERE pnl > 0)::int AS winning_trades,
-          COUNT(*) FILTER (WHERE pnl <= 0 AND status != 'open')::int AS losing_trades,
+          COUNT(*) FILTER (WHERE pnl < 0 AND status != 'open')::int AS losing_trades,
           COALESCE(SUM(pnl), 0)::numeric AS total_pnl,
           ROUND(
-            CASE WHEN COUNT(*) FILTER (WHERE status != 'open') > 0
-            THEN (COUNT(*) FILTER (WHERE pnl > 0)::numeric / COUNT(*) FILTER (WHERE status != 'open') * 100)
+            CASE WHEN COUNT(*) FILTER (WHERE status != 'open' AND pnl IS NOT NULL) > 0
+            THEN (COUNT(*) FILTER (WHERE pnl > 0)::numeric / COUNT(*) FILTER (WHERE status != 'open' AND pnl IS NOT NULL) * 100)
             ELSE 0 END, 1
           ) AS win_rate,
           ROUND(COALESCE(AVG(
